@@ -14,3 +14,11 @@ Não foram executados testes, builds nem emissão real nesta implementação, a 
 10. Repetir nos sistemas pretendidos antes de distribuir binários.
 
 Somente após a validação manual, definir testes automatizados úteis para regras financeiras, protocolo e recuperação. Automação real não deve rodar em CI.
+
+## Correções após o primeiro teste de interface
+
+Conferir o histórico expandido sem aviso de ListTile; campos com controllers e filtros monetários; calendário pt-BR que grava MM/AAAA; máscara de CNPJ no escritório, tabela, colagem e importação. Conferir dígitos/centavos e edição no meio do texto.
+
+Experimentar primeiro **Abrir / conectar Chrome**, concluir o login e então iniciar o lote. Conferir que CAPTCHA resolvido e autenticação pendente não são confundidos. Validar os dois modos Chrome, downloads e desconexão do modo externo preservando a janela. Não houve teste real do GOV.BR nesta correção.
+
+Nesta correção, foram feitas somente análise estática Flutter e leitura de sintaxe Python, sem executar testes, build ou emissão. A validação visual e o login GOV.BR permanecem com o operador.

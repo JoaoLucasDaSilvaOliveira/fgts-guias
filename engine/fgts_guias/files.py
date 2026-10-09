@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from openpyxl import Workbook, load_workbook
 from pypdf import PdfReader
-from .domain import HEADERS, header_key, digits, reais
+from .domain import HEADERS, header_key, digits, reais, money
 
 KEYS = ['cod', 'empresa', 'cnpj', 'fgts', 'consignado', 'total', 'observacoes']
 
@@ -42,6 +42,14 @@ def read_table(path):
         if row['cnpj'].endswith('.0'):
             row['cnpj'] = row['cnpj'][:-2]
         row['cnpj'] = digits(row['cnpj']).zfill(14) if row['cnpj'] else ''
+        if len(row['cnpj']) > 14:
+            raise ValueError(f'Linha {number}: CNPJ possui mais de 14 dígitos')
+        for key in ['fgts', 'consignado', 'total']:
+            if row[key].strip():
+                try:
+                    row[key] = reais(money(row[key]))
+                except ValueError as exc:
+                    raise ValueError(f'Linha {number}, {key}: valor monetário inválido') from exc
         row['selected'] = True
         result.append(row)
     return result

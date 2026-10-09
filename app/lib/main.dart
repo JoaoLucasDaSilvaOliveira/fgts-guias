@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'inputs.dart';
 import 'package:file_picker/file_picker.dart';
 
 import 'engine.dart';
@@ -15,6 +18,9 @@ class GuideApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'FGTS Guias',
+        locale: const Locale('pt', 'BR'),
+        supportedLocales: const [Locale('pt', 'BR')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
         theme: ThemeData(
           useMaterial3: true,
           scaffoldBackgroundColor: paper,
@@ -48,6 +54,9 @@ class _WorkspaceState extends State<Workspace> {
       finalPeriod = TextEditingController(),
       output = TextEditingController();
   List<Map<String, dynamic>> rows = [];
+  final controllers = <Map<String, dynamic>, CompanyControllers>{};
+  final debugPort = TextEditingController(text: '9222');
+  String browserMode = 'managed';
   final states = <String, String>{};
   final log = <String>[];
   Map<String, dynamic>? attention;
@@ -61,6 +70,8 @@ class _WorkspaceState extends State<Workspace> {
         'initial': initial.text,
         'final': finalPeriod.text,
         'output': output.text,
+        'browserMode': browserMode,
+        'debugPort': debugPort.text,
       };
   @override
   void initState() {
@@ -105,13 +116,16 @@ class _WorkspaceState extends State<Workspace> {
       final workspace = Map<String, dynamic>.from(data['workspace'] ?? {});
       final config = Map<String, dynamic>.from(workspace['settings'] ?? {});
       office.text = config['officeName'] ?? '';
-      cnpj.text = config['officeCnpj'] ?? '';
+      cnpj.text = maskCnpj(config['officeCnpj'] ?? '');
+      browserMode = config['browserMode'] ?? 'managed';
+      debugPort.text = config['debugPort']?.toString() ?? '9222';
       initial.text = config['initial'] ?? '';
       finalPeriod.text = config['final'] ?? '';
       output.text = config['output'] ?? '';
       rows = (workspace['rows'] as List? ?? [])
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
+      maskRows();
       setState(() {
         ready = true;
         chrome = data['chrome']?.toString() ?? '';
@@ -168,6 +182,7 @@ class _WorkspaceState extends State<Workspace> {
             .map((e) => Map<String, dynamic>.from(e))
             .toList(),
       );
+      maskRows();
       await persist();
     } catch (e) {
       showError(e);
@@ -181,8 +196,9 @@ class _WorkspaceState extends State<Workspace> {
       type: FileType.custom,
       allowedExtensions: ['xlsx', 'csv'],
     );
-    if (path != null)
+    if (path != null) {
       await act(template ? 'template' : 'export', {'path': path, 'rows': rows});
+    }
   }
 
   Future<void> start() async {
@@ -253,7 +269,7 @@ class _WorkspaceState extends State<Workspace> {
       type: FileType.custom,
       allowedExtensions: ['pdf'],
     );
-    if (picked != null)
+    if (picked != null) {
       await act('recover', {
         'row': matches.first,
         'settings': settings,
@@ -261,9 +277,42 @@ class _WorkspaceState extends State<Workspace> {
         'guide': number.text,
         'due': due.text,
       });
+    }
     number.dispose();
     due.dispose();
   }
+
+  void maskRows() {
+    for (final row in rows) {
+      row['cnpj'] = maskCnpj(row['cnpj']?.toString() ?? '');
+    }
+    final removed =
+        controllers.keys.where((row) => !rows.contains(row)).toList();
+    for (final row in removed) {
+      controllers.remove(row)?.dispose();
+    }
+  }
+
+  Widget competence(String label, TextEditingController controller) => SizedBox(
+        width: 180,
+        child: TextField(
+            controller: controller,
+            readOnly: true,
+            enabled: !running,
+            onTap: running
+                ? null
+                : () async {
+                    final selected =
+                        await pickCompetence(context, controller.text);
+                    if (selected != null && mounted) {
+                      setState(() => controller.text = selected);
+                      changed();
+                    }
+                  },
+            decoration: InputDecoration(
+                labelText: label,
+                suffixIcon: const Icon(Icons.calendar_month))),
+      );
 
   Widget field(
     String label,
@@ -276,6 +325,8 @@ class _WorkspaceState extends State<Workspace> {
         child: TextField(
           controller: controller,
           enabled: enabled,
+          inputFormatters: controller == cnpj ? [CnpjFormatter()] : null,
+          keyboardType: controller == cnpj ? TextInputType.number : null,
           onChanged: (_) => changed(),
           decoration: InputDecoration(labelText: label),
         ),
@@ -418,8 +469,27 @@ class _WorkspaceState extends State<Workspace> {
                                           key: ValueKey(
                                             '${identityHashCode(row)}-$key',
                                           ),
-                                          initialValue:
-                                              row[key]?.toString() ?? '',
+                                          controller: controllers
+                                              .putIfAbsent(row,
+                                                  () => CompanyControllers(row))
+                                              .fields[key],
+                                          inputFormatters: key == 'cnpj'
+                                              ? [CnpjFormatter()]
+                                              : ['fgts', 'consignado', 'total']
+                                                      .contains(key)
+                                                  ? [MoneyFormatter()]
+                                                  : null,
+                                          keyboardType: [
+                                            'fgts',
+                                            'consignado',
+                                            'total'
+                                          ].contains(key)
+                                              ? const TextInputType
+                                                  .numberWithOptions(
+                                                  decimal: true)
+                                              : key == 'cnpj'
+                                                  ? TextInputType.number
+                                                  : TextInputType.text,
                                           enabled: !running ||
                                               (paused &&
                                                   [
@@ -460,6 +530,7 @@ class _WorkspaceState extends State<Workspace> {
                                           ? null
                                           : () {
                                               setState(() => rows.remove(row));
+                                              maskRows();
                                               changed();
                                             },
                                     ),
@@ -527,18 +598,8 @@ class _WorkspaceState extends State<Workspace> {
                       width: 200,
                       enabled: !running,
                     ),
-                    field(
-                      'Inicial · MM/AAAA',
-                      initial,
-                      width: 160,
-                      enabled: !running,
-                    ),
-                    field(
-                      'Final · MM/AAAA',
-                      finalPeriod,
-                      width: 160,
-                      enabled: !running,
-                    ),
+                    competence('Inicial · MM/AAAA', initial),
+                    competence('Final · MM/AAAA', finalPeriod),
                     SizedBox(
                       width: 340,
                       child: TextField(
@@ -565,6 +626,48 @@ class _WorkspaceState extends State<Workspace> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                Wrap(spacing: 12, runSpacing: 12, children: [
+                  SizedBox(
+                      width: 260,
+                      child: DropdownButtonFormField<String>(
+                          key: ValueKey(browserMode),
+                          initialValue: browserMode,
+                          decoration: const InputDecoration(
+                              labelText: 'Sessão do Chrome'),
+                          items: const [
+                            DropdownMenuItem(
+                                value: 'managed',
+                                child: Text('Chrome do app (persistente)')),
+                            DropdownMenuItem(
+                                value: 'attach',
+                                child: Text('Chrome já aberto (depuração)'))
+                          ],
+                          onChanged: running
+                              ? null
+                              : (value) {
+                                  setState(() => browserMode = value!);
+                                  changed();
+                                })),
+                  if (browserMode == 'attach')
+                    SizedBox(
+                        width: 120,
+                        child: TextField(
+                            controller: debugPort,
+                            enabled: !running,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly
+                            ],
+                            decoration:
+                                const InputDecoration(labelText: 'Porta local'),
+                            onChanged: (_) => changed())),
+                  OutlinedButton.icon(
+                      onPressed: ready && !running
+                          ? () => act('open_browser', {'settings': settings})
+                          : null,
+                      icon: const Icon(Icons.open_in_browser),
+                      label: const Text('Abrir / conectar Chrome')),
+                ]),
                 const SizedBox(height: 20),
                 Wrap(
                   spacing: 8,
@@ -626,98 +729,111 @@ class _WorkspaceState extends State<Workspace> {
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, size) {
-                      final panel = Container(
-                        width: size.maxWidth > 1050 ? 340 : null,
-                        padding: const EdgeInsets.all(20),
-                        color: paused
-                            ? const Color(0xffffedcf)
-                            : const Color(0xffe8eee7),
-                        child: SingleChildScrollView(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                paused
-                                    ? 'Sua atenção é necessária'
-                                    : 'Acompanhamento',
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              SelectableText(status),
-                              if (attention?['company'] != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 12),
-                                  child: Text('CNPJ: ${attention!['company']}'),
-                                ),
-                              if (attention?['expected'] != null)
-                                SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: discrepancy(),
-                                ),
-                              if (paused && running) ...[
-                                const SizedBox(height: 20),
-                                const Text(
-                                  'Corrija os dados ou resolva a etapa no Chrome. Retomar confere os valores novamente.',
-                                ),
-                                const SizedBox(height: 12),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: [
-                                    FilledButton(
-                                      onPressed: () => act('resume'),
-                                      child: const Text('Retomar'),
-                                    ),
-                                    OutlinedButton(
-                                      onPressed: () => act('skip'),
-                                      child: const Text('Ignorar empresa'),
-                                    ),
-                                    OutlinedButton(
-                                      onPressed: recovery,
-                                      child: const Text('Recuperar PDF'),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                              const Divider(height: 32),
-                              const Text(
-                                'Certificado e CAPTCHA',
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Selecione o certificado, informe o PIN e resolva CAPTCHA diretamente no Chrome. A localização não é autorizada.',
-                              ),
-                              TextButton(
-                                onPressed: ready && (!running || paused)
-                                    ? () => act('close_browser')
-                                    : null,
-                                child: const Text(
-                                  'Fechar Chrome para trocar certificado',
-                                ),
-                              ),
-                              const Divider(height: 24),
-                              ExpansionTile(
-                                tilePadding: EdgeInsets.zero,
-                                title: const Text('Histórico desta sessão'),
-                                children: [
-                                  for (final entry in log.reversed.take(20))
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 6,
+                      final panel = Material(
+                          color: paused
+                              ? const Color(0xffffedcf)
+                              : const Color(0xffe8eee7),
+                          child: SizedBox(
+                              width: size.maxWidth > 1050 ? 340 : null,
+                              child: Padding(
+                                padding: const EdgeInsets.all(20),
+                                child: SingleChildScrollView(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        paused
+                                            ? 'Sua atenção é necessária'
+                                            : 'Acompanhamento',
+                                        style: const TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
-                                      child: SelectableText(entry),
-                                    ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                      if (size.maxWidth > 1050)
+                                      const SizedBox(height: 16),
+                                      SelectableText(status),
+                                      if (attention?['company'] != null)
+                                        Padding(
+                                          padding:
+                                              const EdgeInsets.only(top: 12),
+                                          child: Text(
+                                              'CNPJ: ${maskCnpj(attention!['company'].toString())}'),
+                                        ),
+                                      if (attention?['expected'] != null)
+                                        SingleChildScrollView(
+                                          scrollDirection: Axis.horizontal,
+                                          child: discrepancy(),
+                                        ),
+                                      if (paused && running) ...[
+                                        const SizedBox(height: 20),
+                                        const Text(
+                                          'Corrija os dados ou resolva a etapa no Chrome. Retomar confere os valores novamente.',
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: [
+                                            FilledButton(
+                                              onPressed: () => act('resume'),
+                                              child: const Text('Retomar'),
+                                            ),
+                                            OutlinedButton(
+                                              onPressed: () => act('skip'),
+                                              child:
+                                                  const Text('Ignorar empresa'),
+                                            ),
+                                            OutlinedButton(
+                                              onPressed: recovery,
+                                              child:
+                                                  const Text('Recuperar PDF'),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                      const Divider(height: 32),
+                                      const Text(
+                                        'Certificado e CAPTCHA',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      const Text(
+                                        'Selecione o certificado, informe o PIN e resolva CAPTCHA diretamente no Chrome. A localização não é autorizada.',
+                                      ),
+                                      TextButton(
+                                        onPressed: ready && (!running || paused)
+                                            ? () => act('close_browser')
+                                            : null,
+                                        child: Text(
+                                          browserMode == 'attach'
+                                              ? 'Desconectar (feche o Chrome para trocar certificado)'
+                                              : 'Fechar Chrome para trocar certificado',
+                                        ),
+                                      ),
+                                      const Divider(height: 24),
+                                      ExpansionTile(
+                                        tilePadding: EdgeInsets.zero,
+                                        title: const Text(
+                                            'Histórico desta sessão'),
+                                        children: [
+                                          for (final entry
+                                              in log.reversed.take(20))
+                                            Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                vertical: 6,
+                                              ),
+                                              child: SelectableText(entry),
+                                            ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )));
+                      if (size.maxWidth > 1050) {
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
@@ -726,6 +842,7 @@ class _WorkspaceState extends State<Workspace> {
                             panel,
                           ],
                         );
+                      }
                       return Column(
                         children: [
                           Expanded(child: table()),
@@ -751,7 +868,10 @@ class _WorkspaceState extends State<Workspace> {
     saver?.cancel();
     subscription?.cancel();
     engine.close();
-    for (final c in [office, cnpj, initial, finalPeriod, output]) {
+    for (final row in controllers.values) {
+      row.dispose();
+    }
+    for (final c in [office, cnpj, initial, finalPeriod, output, debugPort]) {
       c.dispose();
     }
     super.dispose();

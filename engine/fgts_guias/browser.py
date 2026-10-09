@@ -5,7 +5,7 @@ import shutil
 import uuid
 from pathlib import Path
 from datetime import date, timedelta
-from playwright.async_api import async_playwright
+from .chrome import ChromeSession
 from .domain import digits, money, reais, safe_filename
 from .files import validate_pdf
 
@@ -29,28 +29,29 @@ def chrome_path():
 class Portal:
     def __init__(self, storage, notify, checkpoint):
         self.store, self.notify, self.checkpoint = storage, notify, checkpoint
-        self.context = self.page = self.playwright = None
+        self.context = self.page = None
+        self.chrome = ChromeSession(storage.root)
 
-    async def launch(self):
-        if self.context:
-            return
+    async def launch(self, settings=None):
+        settings = settings or self.store.get('workspace', {}).get('settings', {})
         executable = chrome_path()
         if not executable:
             raise Attention('Instale o Google Chrome antes de iniciar.')
-        self.playwright = await async_playwright().start()
-        self.context = await self.playwright.chromium.launch_persistent_context(
-            str(self.store.root / 'chrome-profile'), executable_path=executable,
-            headless=False, accept_downloads=True, permissions=[], no_viewport=True)
-        self.context.set_default_timeout(15000)
-        self.page = self.context.pages[0] if self.context.pages else await self.context.new_page()
-        await self.page.goto(BASE)
+        self.context = await self.chrome.open(executable, settings)
+        if self.page and not self.page.is_closed() and self.page.context == self.context:
+            return
+        candidates = [page for page in self.context.pages
+                      if 'fgtsdigital.sistema.gov.br/' in page.url or 'sso.acesso.gov.br/' in page.url]
+        if len(candidates) > 1:
+            raise Attention('Há mais de uma aba FGTS/GOV.BR. Deixe aberta somente a aba que deseja usar.')
+        self.page = candidates[0] if candidates else await self.context.new_page()
+        if not candidates:
+            await self.page.goto(BASE)
+        await self.page.bring_to_front()
 
     async def close(self):
-        if self.context:
-            await self.context.close()
-        if self.playwright:
-            await self.playwright.stop()
-        self.context = self.page = self.playwright = None
+        await self.chrome.close()
+        self.context = self.page = None
 
     async def text(self):
         return await self.page.locator('body').inner_text()
@@ -69,11 +70,12 @@ class Portal:
             if await checkbox.count():
                 challenge = challenge or await checkbox.first.get_attribute('aria-checked') != 'true'
             elif 'bframe' in frame.url or 'challenge' in frame.url:
-                challenge = True
+                content = frame.locator('body')
+                challenge = challenge or (await content.is_visible() and bool((await content.inner_text()).strip()))
         if challenge:
-            raise Attention('Resolva o CAPTCHA no Chrome e clique em Retomar.')
+            raise Attention('O Chrome ainda mostra uma verificação CAPTCHA pendente. Resolva-a no Chrome e aguarde o portal abrir antes de Retomar.', reason='captcha')
         if 'acesso.gov.br' in self.page.url or '/login' in self.page.url:
-            raise Attention('Entre com GOV.BR e selecione o certificado digital no Chrome. Depois clique em Retomar.')
+            raise Attention('O portal ainda está na autenticação GOV.BR. Conclua o login no Chrome e aguarde a tela do FGTS Digital antes de Retomar.', reason='authentication')
 
     async def click(self, name):
         await self.guard()
@@ -179,7 +181,7 @@ class Portal:
                     raise Attention('Símbolo de informação na tabela não reconhecido. Confira se existe guia aguardando pagamento.', recovery=True)
 
     async def run(self, company, settings):
-        await self.launch()
+        await self.launch(settings)
         await self.guard()
         initial, final = settings['initial'], settings['final']
         key = self.store.job_key(company, initial, final)

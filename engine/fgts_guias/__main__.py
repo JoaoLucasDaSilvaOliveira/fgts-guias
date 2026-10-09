@@ -36,13 +36,13 @@ class Engine:
                         raise
                     except Exception as exc:
                         if self.skip:
-                            self.event('skipped', company=self.current['cnpj'])
+                            self.event('skipped', company=digits(self.current['cnpj']))
                             break
                         self.gate.clear()
-                        self.event('attention', company=self.current['cnpj'], message=str(exc), **getattr(exc, 'details', {}))
+                        self.event('attention', company=digits(self.current['cnpj']), message=str(exc), **getattr(exc, 'details', {}))
                         await self.gate.wait()
                         if self.skip:
-                            self.event('skipped', company=self.current['cnpj'])
+                            self.event('skipped', company=digits(self.current['cnpj']))
                             break
             self.event('finished', message='Lote encerrado. Confira as empresas salvas e ignoradas.')
         except asyncio.CancelledError:
@@ -58,6 +58,11 @@ class Engine:
             return {'rows':read_table(data['path'])}
         elif name in ['export','template']:
             write_table(data['path'], [] if name == 'template' else data['rows'])
+        elif name == 'open_browser':
+            if self.task and not self.task.done():
+                raise ValueError('Encerre o lote antes de abrir outra sessão')
+            await self.portal.launch(data['settings'])
+            self.event('progress', message='Chrome conectado. Entre no GOV.BR antes de iniciar o lote.')
         elif name == 'start':
             if self.task and not self.task.done():
                 raise ValueError('Já existe um lote em andamento')

@@ -3,11 +3,12 @@
 - `app/`: janela Flutter desktop. Tabela editável, importação/exportação, escritório, período, destino e intervenção humana.
 - `engine/fgts_guias/domain.py`: CNPJ numérico com dígitos verificadores, dinheiro exato em centavos, competências, nomes de arquivo.
 - `files.py`: CSV/XLSX com cabeçalhos normalizados; validação conservadora do PDF.
+- `chrome.py`: abertura convencional do Chrome e conexão CDP local, preservando sessão.
 - `browser.py`: adaptador da interface pública FGTS Digital, Google Chrome visível via Playwright.
 - `storage.py`: SQLite no diretório de dados do usuário, fora do projeto. Workspace e diário por CNPJ/período.
 - `__main__.py`: processo local, protocolo JSON por linha. Sem servidor HTTP ou dependência de uma planilha externa.
 
-Comandos: bootstrap, save, import, export, template, start, pause, resume, skip, stop, recover, close_browser. Respostas contêm id, ok e data/error. Eventos: progress, attention, saved, skipped, finished, diagnostic. Não encaminhar stdout Python para texto livre.
+Comandos: bootstrap, save, import, export, template, start, pause, resume, skip, stop, recover, open_browser, close_browser. Respostas contêm id, ok e data/error. Eventos: progress, attention, saved, skipped, finished, diagnostic. Não encaminhar stdout Python para texto livre.
 
 **Empresa** contém COD, EMPRESA, CNPJ, FGTS MENSAL, CONSIGNADO, TOTAL, OBSERVAÇÕES. COD é identificação humana; CNPJ decide perfil e é chave financeira. O TOTAL informado deve igualar FGTS + consignado; não é corrigido automaticamente. O titular configura nome/CNPJ na própria interface, sem .env.
 
@@ -15,7 +16,7 @@ Comandos: bootstrap, save, import, export, template, start, pause, resume, skip,
 
 **Guia**: intenção `issuing` → `download_pending` → `saved`. Antes de clicar na emissão, intenção fica durável. Após falha ou reinício nesse intervalo, somente recuperação. Um salvo é revalidado antes de ser reutilizado. Chave: CNPJ + competência inicial + final. Arquivo com mesmo nome e outro conteúdo exige intervenção, sem substituição automática.
 
-**Chrome**: instalação Google Chrome obrigatória em caminho padrão. Perfil dedicado no diretório de dados do app, sem acesso ao perfil pessoal. Certificado/token e CAPTCHA são controlados pelo operador. Trocar certificado fecha o navegador controlado inteiro. Sessão local não é enviada ao repositório.
+**Chrome**: instalação Google Chrome obrigatória em caminho padrão. Abertura convencional com CDP, sem flags padrão do Playwright; conexão opcional a Chrome externo com depuração local. Veja [sessão Chrome](chrome.md). Perfil dedicado no diretório de dados do app, sem acesso ao perfil pessoal. Certificado/token e CAPTCHA são controlados pelo operador. Trocar certificado fecha o Chrome iniciado pelo app inteiro; no modo externo, desconecta e o operador fecha o Chrome manualmente. Sessão local não é enviada ao repositório.
 
 ## Distribuição
 

@@ -2,6 +2,7 @@
 
 App desktop Flutter com motor Python/Playwright. Use Chrome instalado e um perfil exclusivo. Valores monetários no motor são centavos inteiros; entradas e arquivos usam reais.
 
+- Antes de mudar sessão Chrome, leia [docs/chrome.md](docs/chrome.md).
 - Antes de mudar navegação, emissão ou recuperação, leia [docs/fluxo-fgts.md](docs/fluxo-fgts.md).
 - Antes de mudar modelos, comunicação ou distribuição, leia [docs/arquitetura.md](docs/arquitetura.md).
 - Antes de publicar arquivos ou logs, leia [docs/privacidade.md](docs/privacidade.md).
