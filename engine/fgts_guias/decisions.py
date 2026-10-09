@@ -26,8 +26,18 @@ class Decisions:
         descriptor, future = self.pending
         if future.done() or descriptor['id'] != token or descriptor['company'] != company:
             raise ValueError('A decisão expirou ou os dados mudaram. Use Retomar para conferir novamente.')
-        self.store.record_decision({**descriptor, 'accepted_at':datetime.now(timezone.utc).isoformat()})
+        self.store.record_decision({**descriptor, 'action':'accepted', 'accepted_at':datetime.now(timezone.utc).isoformat()})
         future.set_result(True)
+
+    def reject(self, token):
+        if not self.pending:
+            raise ValueError('Não há decisão pendente')
+        descriptor, future = self.pending
+        if future.done() or descriptor['id'] != token:
+            raise ValueError('A decisão expirou. Confira a pendência atual.')
+        self.store.record_decision({**descriptor, 'action':'rejected',
+            'rejected_at':datetime.now(timezone.utc).isoformat()})
+        future.set_result(False)
 
     def retry(self):
         if self.pending and not self.pending[1].done():

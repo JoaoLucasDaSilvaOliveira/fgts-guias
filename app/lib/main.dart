@@ -772,18 +772,22 @@ class _WorkspaceState extends State<Workspace> {
                                         ),
                                       if (paused && running) ...[
                                         const SizedBox(height: 20),
-                                        const Text(
-                                          'Corrija os dados ou resolva a etapa no Chrome. Retomar confere os valores novamente.',
+                                        Text(
+                                          attention?['decision_id'] != null
+                                              ? 'Aceite esta divergência ou negue para revisar antes de continuar.'
+                                              : 'Corrija os dados ou resolva a etapa no Chrome. Retomar confere os valores novamente.',
                                         ),
                                         const SizedBox(height: 12),
                                         Wrap(
                                           spacing: 8,
                                           runSpacing: 8,
                                           children: [
-                                            FilledButton(
-                                              onPressed: () => act('resume'),
-                                              child: const Text('Retomar'),
-                                            ),
+                                            if (attention?['decision_id'] ==
+                                                null)
+                                              FilledButton(
+                                                onPressed: () => act('resume'),
+                                                child: const Text('Retomar'),
+                                              ),
                                             if (attention?['decision_id'] !=
                                                 null)
                                               FilledButton.icon(
@@ -802,16 +806,32 @@ class _WorkspaceState extends State<Workspace> {
                                                 label: const Text(
                                                     'Aceitar divergência'),
                                               ),
-                                            OutlinedButton(
-                                              onPressed: () => act('skip'),
-                                              child:
-                                                  const Text('Ignorar empresa'),
-                                            ),
-                                            OutlinedButton(
-                                              onPressed: recovery,
-                                              child:
-                                                  const Text('Recuperar PDF'),
-                                            ),
+                                            if (attention?['decision_id'] !=
+                                                null)
+                                              OutlinedButton.icon(
+                                                icon: const Icon(Icons.close),
+                                                onPressed: () =>
+                                                    act('reject_difference', {
+                                                  'decision_id':
+                                                      attention!['decision_id'],
+                                                }),
+                                                label: const Text(
+                                                    'Negar divergência'),
+                                              ),
+                                            if (attention?['decision_id'] ==
+                                                null)
+                                              OutlinedButton(
+                                                onPressed: () => act('skip'),
+                                                child: const Text(
+                                                    'Ignorar empresa'),
+                                              ),
+                                            if (attention?['decision_id'] ==
+                                                null)
+                                              OutlinedButton(
+                                                onPressed: recovery,
+                                                child:
+                                                    const Text('Recuperar PDF'),
+                                              ),
                                           ],
                                         ),
                                       ],

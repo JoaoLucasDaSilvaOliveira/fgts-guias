@@ -20,6 +20,20 @@ class DecisionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.records), 1)
         self.assertEqual(self.records[0]['found'], {'fgts':200})
 
+    async def test_rejection_consumes_only_current_decision_and_audits(self):
+        descriptor, future = self.decisions.create(self.company, {}, {}, {})
+        with self.assertRaises(ValueError):
+            self.decisions.reject('expired')
+        self.assertFalse(future.done())
+        self.decisions.reject(descriptor['id'])
+        self.assertFalse(await future)
+        self.assertEqual(self.records[0]['action'], 'rejected')
+        with self.assertRaises(ValueError):
+            self.decisions.accept(descriptor['id'], self.company)
+        with self.assertRaises(ValueError):
+            self.decisions.reject(descriptor['id'])
+        self.assertEqual(len(self.records), 1)
+
     async def test_changed_input_or_wrong_token_does_not_release(self):
         descriptor, future = self.decisions.create(self.company, {'scope':'FGTS'}, {'fgts':100}, {'fgts':200})
         for token, company in [('expired', self.company), (descriptor['id'], {**self.company, 'fgts':300})]:
@@ -100,6 +114,34 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(records), 1)
         with self.assertRaises(ValueError):
             await engine.command('accept_difference', {'decision_id':token})
+
+    async def test_reject_command_keeps_batch_paused_for_review(self):
+        from fgts_guias.__main__ import Engine
+        from fgts_guias.decisions import RetryCompany
+        engine = Engine.__new__(Engine)
+        records, events = [], []
+        engine.store = SimpleNamespace(record_decision=records.append)
+        engine.decisions = Decisions(engine.store)
+        engine.current = {'cnpj':'00000000000191'}
+        engine.gate = asyncio.Event()
+        engine.gate.set()
+        engine.batch_settings = {'initial':'09/2026', 'final':'09/2026'}
+        engine.event = lambda kind, **data: events.append((kind, data))
+        async def no_op(*args, **kwargs):
+            pass
+        engine.portal = SimpleNamespace(visibility=no_op)
+        task = asyncio.create_task(engine.decision(engine.current, 'FGTS',
+            {'fgts':100}, {'fgts':200}))
+        await asyncio.sleep(0)
+        token = engine.decisions.pending[0]['id']
+        await engine.command('reject_difference', {'decision_id':token})
+        with self.assertRaises(RetryCompany):
+            await task
+        self.assertFalse(engine.gate.is_set())
+        self.assertIsNone(engine.decisions.pending)
+        self.assertEqual(events[-1][0], 'attention')
+        self.assertNotIn('decision_id', events[-1][1])
+        self.assertEqual(records[0]['action'], 'rejected')
 
     async def test_pdf_identity_failure_never_offers_acceptance(self):
         portal = Portal.__new__(Portal)

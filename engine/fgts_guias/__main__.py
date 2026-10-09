@@ -172,6 +172,12 @@ class Engine:
                 raise
             self.gate.set()
             self.event('progress', message='Decisão específica aceita uma vez. Continuando as conferências…')
+        elif name == 'reject_difference':
+            if not self.current or self.gate.is_set() or not self.decisions.pending:
+                raise ValueError('Não há divergência específica aguardando decisão')
+            self.decisions.reject(data.get('decision_id'))
+            self.event('attention', company=self.current['cnpj'],
+                message='Divergência negada. Revise os dados ou a guia no Chrome. Retomar fará uma nova conferência.')
         elif name == 'resume':
             await self.portal.guard(checkpoint=False)
             await self.portal.visibility(False)
