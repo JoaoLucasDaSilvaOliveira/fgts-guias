@@ -24,11 +24,11 @@ def read_table(path):
     else:
         raise ValueError('Importe um arquivo CSV ou XLSX')
     if not data:
-        raise ValueError('Arquivo vazio')
+        raise ValueError('A planilha está vazia. Inclua pelo menos uma empresa antes de importar.')
     headers = [header_key(x) for x in data[0]]
     required = [header_key(x) for x in HEADERS]
     if any(headers.count(x) != 1 for x in required):
-        raise ValueError('Cabeçalhos ausentes ou duplicados. Use o template do aplicativo.')
+        raise ValueError('A planilha tem colunas obrigatórias ausentes ou repetidas. Baixe o modelo de planilha e mantenha os nomes das colunas.')
     indexes = [headers.index(x) for x in required]
     result = []
     for number, line in enumerate(data[1:], 2):

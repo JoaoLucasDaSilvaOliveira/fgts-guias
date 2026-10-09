@@ -25,7 +25,7 @@ class Decisions:
             raise ValueError('Não há decisão pendente')
         descriptor, future = self.pending
         if future.done() or descriptor['id'] != token or descriptor['company'] != company:
-            raise ValueError('A decisão expirou ou os dados mudaram. Use Retomar para conferir novamente.')
+            raise ValueError('Os dados mudaram desde a conferência. Negue a divergência e clique em Retomar para conferir os valores atualizados.')
         self.store.record_decision({**descriptor, 'action':'accepted', 'accepted_at':datetime.now(timezone.utc).isoformat()})
         future.set_result(True)
 

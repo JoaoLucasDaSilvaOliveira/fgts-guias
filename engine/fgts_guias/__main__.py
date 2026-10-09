@@ -2,6 +2,7 @@ import asyncio
 import json
 import sys
 from .storage import Storage
+from .errors import user_message
 from .domain import normalize_row, period, valid_cnpj, digits
 from .files import read_table, write_table
 from .browser import Portal, chrome_path
@@ -24,7 +25,7 @@ class Engine:
         if self.task and not self.task.done() and not self.browser_finished:
             self.browser_finished = True
             self.task.cancel()
-            self.event('finished', company=digits(self.current['cnpj']) if self.current else None, message='Chrome foi fechado. Lote encerrado imediatamente; emissões solicitadas ficam registradas para recuperação.')
+            self.event('finished', company=digits(self.current['cnpj']) if self.current else None, message='O Chrome foi fechado e o lote foi interrompido. Ao iniciar novamente, o app recupera as guias já solicitadas.')
     def event(self, kind, **values):
         print(json.dumps({'event':kind, **values}, ensure_ascii=False), flush=True)
     async def checkpoint(self):
@@ -55,7 +56,7 @@ class Engine:
         descriptor, future = self.decisions.create(company, {
             'scope':scope, 'initial':settings['initial'], 'final':settings['final'], **context}, expected, found)
         self.gate.clear()
-        self.event('attention', company=company['cnpj'], message='Divergência em ' + scope + '. Confira antes de aceitar.',
+        self.event('attention', company=company['cnpj'], message='Os dados encontrados diferem dos informados. Confira os valores abaixo antes de continuar.',
             decision_id=descriptor['id'], expected=expected, found=found,
             difference={k:found[k]-v for k,v in expected.items() if isinstance(v, int) and isinstance(found.get(k), int)},
             scope=scope, guide=context.get('guide'))
@@ -90,8 +91,9 @@ class Engine:
                             self.event('skipped', company=digits(self.current['cnpj']))
                             break
                         self.gate.clear()
+                        self.event('diagnostic', message=repr(exc))
                         details = getattr(exc, 'details', {})
-                        self.event('attention', company=digits(self.current['cnpj']), message=str(exc), **details)
+                        self.event('attention', company=digits(self.current['cnpj']), message=user_message(exc), **details)
                         try:
                             await self.portal.visibility(True)
                         except Exception as window_error:
@@ -108,10 +110,10 @@ class Engine:
                 await self.portal.visibility(False)
             except Exception as exc:
                 self.event('diagnostic', message='Não foi possível minimizar Chrome ao concluir: ' + str(exc))
-            self.event('finished', message='Lote encerrado. Confira as empresas salvas e ignoradas.')
+            self.event('finished', message='Lote concluído. Confira as guias salvas e as empresas ignoradas.')
         except asyncio.CancelledError:
             if not self.browser_finished:
-                self.event('finished', message='Lote interrompido. Emissões solicitadas permanecem registradas.')
+                self.event('finished', message='Lote interrompido. Ao iniciar novamente, o app recupera as guias já solicitadas.')
         finally:
             self.cancel_auth_watcher()
             self.decisions.clear()
@@ -138,11 +140,11 @@ class Engine:
                 raise ValueError('Já existe um lote em andamento')
             settings = data['settings']
             if not valid_cnpj(settings['officeCnpj']):
-                raise ValueError('Informe um CNPJ válido para o escritório')
+                raise ValueError('Informe um CNPJ válido para o titular do certificado.')
             if period(settings['initial']) > period(settings['final']):
-                raise ValueError('Competência inicial deve preceder a final')
+                raise ValueError('O período inicial não pode ser posterior ao final.')
             if not settings.get('output') or not chrome_path():
-                raise ValueError('Escolha a pasta de destino e instale o Google Chrome')
+                raise ValueError('Escolha a pasta onde salvar as guias e confira se o Google Chrome está instalado.')
             rows = [r for r in data['rows'] if r.get('selected', True)]
             if not rows:
                 raise ValueError('Selecione pelo menos uma empresa')
@@ -157,7 +159,7 @@ class Engine:
             self.cancel_auth_watcher()
             self.gate.clear()
             await self.portal.visibility(True)
-            self.event('attention', message='Pausado. A ação atual será concluída antes da pausa.')
+            self.event('attention', message='Pausa solicitada. O app conclui a ação em andamento e aguarda você retomar.')
         elif name == 'accept_difference':
             if not self.current or self.gate.is_set() or not self.decisions.pending:
                 raise ValueError('Não há divergência específica aguardando aceitação')
@@ -171,7 +173,7 @@ class Engine:
                 await self.portal.visibility(True)
                 raise
             self.gate.set()
-            self.event('progress', message='Decisão específica aceita uma vez. Continuando as conferências…')
+            self.event('progress', message='Divergência aceita nesta etapa. Continuando a conferência…')
         elif name == 'reject_difference':
             if not self.current or self.gate.is_set() or not self.decisions.pending:
                 raise ValueError('Não há divergência específica aguardando decisão')
@@ -218,7 +220,8 @@ async def serve():
                 result = await engine.command(request['command'], request.get('data', {}))
                 reply = {'id':request['id'], 'ok':True, 'data':result}
             except Exception as exc:
-                reply = {'id':request.get('id'), 'ok':False, 'error':str(exc)}
+                engine.event('diagnostic', message=repr(exc))
+                reply = {'id':request.get('id'), 'ok':False, 'error':user_message(exc)}
             print(json.dumps(reply, ensure_ascii=False), flush=True)
     finally:
         if engine.task and not engine.task.done():

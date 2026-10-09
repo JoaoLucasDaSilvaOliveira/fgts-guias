@@ -13,7 +13,7 @@ def money(value):
     else:
         text = str(value if value is not None else '').replace('R$', '').strip().replace(' ', '')
         if not re.fullmatch(r'(?:\d+(?:[.,]\d{1,2})?|\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?)', text):
-            raise ValueError('Valor monetário inválido; informe zero explicitamente quando não houver valor')
+            raise ValueError('Informe um valor em reais, como 123,45. Quando não houver valor, preencha 0,00.')
         if ',' in text:
             text = text.replace('.', '').replace(',', '.')
         elif re.fullmatch(r'\d{1,3}(?:\.\d{3})+', text):
@@ -45,17 +45,17 @@ def normalize_row(row):
     if not valid_cnpj(item['cnpj']):
         raise ValueError(f"CNPJ inválido: {item.get('empresa', '')}")
     if not str(item.get('empresa', '')).strip() or not str(item.get('cod', '')).strip():
-        raise ValueError('COD e EMPRESA são obrigatórios')
+        raise ValueError('Preencha o código e o nome de todas as empresas.')
     for key in ['fgts', 'consignado', 'total']:
         item[key] = money(item.get(key))
     if item['fgts'] + item['consignado'] != item['total']:
-        raise ValueError(f"{item['empresa']}: TOTAL deve ser FGTS MENSAL + CONSIGNADO")
+        raise ValueError(f"{item['empresa']}: o total deve ser igual à soma do FGTS mensal e do consignado.")
     item['observacoes'] = str(item.get('observacoes', ''))
     return item
 
 def period(value):
     if not re.fullmatch(r'(0[1-9]|1[0-2])/20\d{2}', str(value)):
-        raise ValueError('Competência deve estar no formato MM/AAAA')
+        raise ValueError('Informe o mês e o ano do período, como 09/2026.')
     month, year = map(int, value.split('/'))
     return year*12 + month
 

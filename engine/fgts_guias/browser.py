@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import uuid
+from .errors import user_message
 from playwright.async_api import expect
 from pathlib import Path
 from datetime import date, timedelta
@@ -117,9 +118,9 @@ class Portal:
                 content = frame.locator('body')
                 challenge = challenge or (await content.is_visible() and bool((await content.inner_text()).strip()))
         if challenge:
-            raise Attention('O Chrome ainda mostra uma verificação CAPTCHA pendente. Resolva-a no Chrome e aguarde o portal abrir antes de Retomar.', reason='captcha')
+            raise Attention('Responda ao CAPTCHA no Chrome. O lote continuará quando o FGTS Digital abrir.', reason='captcha')
         if 'acesso.gov.br' in self.page.url or '/login' in self.page.url:
-            raise Attention('O portal ainda está na autenticação GOV.BR. Conclua o login no Chrome e aguarde a tela do FGTS Digital antes de Retomar.', reason='authentication')
+            raise Attention('Conclua o login com seu certificado no Chrome. O lote continuará quando o FGTS Digital abrir.', reason='authentication')
 
     async def click(self, name):
         await self.guard()
@@ -148,9 +149,9 @@ class Portal:
         label = await identity.get_attribute('aria-label') if await identity.count() == 1 else ''
         holder = re.search(r'\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b|\b\d{14}\b', label or '')
         if not holder:
-            raise Attention('Confirme no Chrome o titular do certificado. O CNPJ do escritório não foi identificado no cabeçalho.')
+            raise Attention('Não foi possível confirmar o titular do certificado no portal. Confira no Chrome se o login foi concluído com o certificado correspondente ao CNPJ informado no app.')
         if digits(holder.group()) != office:
-            raise Attention('O CNPJ do certificado autenticado difere do escritório configurado. Confira o titular antes de continuar.')
+            raise Attention('O certificado usado no login pertence a outro CNPJ. Confira o titular informado no app ou feche o Chrome pelo app para entrar com outro certificado.')
         if company['cnpj'] in digits(body.split('Empregador:', 1)[-1].split('\n', 1)[0]) and '/servicos' in self.page.url:
             return
         if '/escolhaPerfil' in self.page.url:
@@ -184,7 +185,7 @@ class Portal:
             combo = self.page.get_by_role('combobox', name=re.compile(label))
             await combo.first.wait_for(state='visible')
             if await combo.count() != 1:
-                raise Attention('Configure a competência Inicial e Final no Chrome; o portal alterou os controles.')
+                raise Attention('Não foi possível preencher o período. Abra o Chrome, confira as competências inicial e final e clique em Retomar.')
             await combo.click()
             await combo.fill(value)
             await self.page.get_by_role('option', name=value, exact=True).click()
@@ -285,7 +286,7 @@ class Portal:
                         await self.reprint(company, settings)
                         return True
                 else:
-                    raise Attention('Símbolo de informação na tabela não reconhecido. Confira se existe guia aguardando pagamento.', recovery=True)
+                    raise Attention('Não foi possível confirmar se há uma guia aguardando pagamento. Abra o Chrome e confira as guias existentes antes de retomar.', recovery=True)
 
     async def recover_from_portal(self, company, settings):
         """Read-only lookup after uncertain issuance; never repeat Emitir Guia."""
@@ -311,7 +312,7 @@ class Portal:
                 def column(label):
                     matches = [i for i, value in enumerate(headers) if label in value]
                     if len(matches) != 1:
-                        raise Attention('Colunas da Consulta de Guias não reconhecidas.', recovery=True)
+                        raise Attention('Não foi possível ler a lista de guias. Abra a Consulta de Guias no Chrome e confira a guia que deseja recuperar.', recovery=True)
                     return matches[0]
                 number_index, due_index, total_index = [column(label) for label in
                     ['Número da Guia', 'Vencimento da Guia', 'Valor Total']]
@@ -341,7 +342,7 @@ class Portal:
                 await next_page.click()
                 await self.page.get_by_role('progressbar', name='Carregando').wait_for(state='hidden', timeout=60000)
             else:
-                raise Attention('Consulta com muitas páginas. Identifique a guia com o operador.', recovery=True)
+                raise Attention('A consulta retornou muitas guias. Localize a guia no Chrome e use Recuperar PDF para salvar o arquivo.', recovery=True)
             candidates = list(dict.fromkeys(candidates))
             if candidates:
                 break
@@ -350,7 +351,7 @@ class Portal:
         if not candidates and len(set(alternatives)) == 1:
             candidates = alternatives
         if len(candidates) != 1:
-            raise Attention('A Consulta de Guias não identificou uma única guia pelo vencimento e valor. Confira no Chrome.', recovery=True)
+            raise Attention('Não foi possível identificar uma única guia com o valor e vencimento informados. Confira a Consulta de Guias no Chrome e use Recuperar PDF se já tiver o arquivo.', recovery=True)
         number, due, amount = candidates[0]
         # Search again to return to the first page, then locate the recorded number.
         await self.click('Pesquisar')
@@ -386,7 +387,7 @@ class Portal:
         except RetryCompany:
             raise
         except Exception as exc:
-            raise Attention('A guia consultada não foi salva: ' + str(exc), recovery=True) from exc
+            raise Attention('A guia consultada não foi salva: ' + user_message(exc), recovery=True) from exc
 
     async def run(self, company, settings):
         await self.launch(settings)
@@ -402,7 +403,7 @@ class Portal:
                 validate_pdf(path, previous.get('verified_company', company), initial, final, previous['due'], previous['guide'])
             except Exception as exc:
                 if path.exists():
-                    raise Attention('O PDF salvo precisa de revisão: ' + str(exc), recovery=True)
+                    raise Attention('O PDF salvo precisa de revisão: ' + user_message(exc), recovery=True)
                 await self.recover_from_portal(company, settings)
                 return
             destination = Path(settings['output']) / safe_filename(company['empresa'])
@@ -422,7 +423,7 @@ class Portal:
         self.notify('progress', company=company['cnpj'], message='1 de 4 · Conferindo FGTS')
         body = await self.text()
         if 'Não há débitos de interesse' in body:
-            reason = 'Não há débitos de interesse no portal; verificar MEI ou envio dos eventos.'
+            reason = 'O portal não apresenta débitos para esta empresa. Confira o enquadramento ou o envio dos eventos na folha de pagamento.'
             self.store.save_job(key, {'state':'no_debts', 'reason':reason, 'company':company,
                                      'initial':initial, 'final':final})
             self.notify('skipped', company=company['cnpj'], message=company['empresa'] + ': ' + reason)
@@ -430,7 +431,7 @@ class Portal:
         if 'Há um ou mais débitos já adicionados' in body:
             for value in {initial, final}:
                 if value not in body:
-                    raise Attention('Confirme a competência do progresso salvo no Chrome antes de continuar.')
+                    raise Attention('Há débitos de uma emissão anterior selecionados no portal. Abra o Chrome e confira se pertencem ao período informado antes de retomar.')
             actual = await self.summary()
             await self.compare(company, actual, loans=actual['consignado'] != 0)
         else:
@@ -480,7 +481,7 @@ class Portal:
         await self.click('Avançar')
         await self.step(4)
         self.validation_stage = 'Emissão'
-        self.notify('progress', company=company['cnpj'], message='4 de 4 · Conferindo e emitindo')
+        self.notify('progress', company=company['cnpj'], message='4 de 4 · Conferindo a guia antes de emitir')
         await self.compare(company, await self.final_summary())
         await self.guard()
         await self.employer(company)
@@ -488,7 +489,7 @@ class Portal:
         try:
             download, downloaded_path = await self.chrome.download(self.page, lambda: self.click('Emitir Guia'), timeout=5)
         except Exception:
-            self.notify('progress', company=company['cnpj'], message='Download não confirmado. Recuperando a guia emitida…')
+            self.notify('progress', company=company['cnpj'], message='O download está demorando. Buscando a guia na Consulta de Guias…')
             await self.recover_from_portal(company, settings)
             return
         try:
@@ -525,7 +526,7 @@ class Portal:
         except RetryCompany:
             raise
         except Exception as exc:
-            raise Attention('A guia existente não foi salva: ' + str(exc), recovery=True) from exc
+            raise Attention('A guia existente não foi salva: ' + user_message(exc), recovery=True) from exc
         await dialog.get_by_role('button', name='Fechar', exact=True).click()
 
     async def verify_download(self, path, company, settings, due, number):
@@ -566,7 +567,7 @@ class Portal:
         except RetryCompany:
             raise
         except Exception as exc:
-            raise Attention('PDF baixado, mas não salvo como concluído: ' + str(exc), recovery=True, temporary=str(temp)) from exc
+            raise Attention('A guia foi baixada, mas não passou pela conferência: ' + user_message(exc), recovery=True, temporary=str(temp)) from exc
         job.update(state='saved', path=str(target))
         self.store.save_job(key, job)
         self.notify('saved', company=company['cnpj'], path=str(target))

@@ -2,7 +2,7 @@
 
 Emissão assistida de guias do FGTS Digital em uma janela desktop. Importe suas empresas, informe a competência e acompanhe as conferências antes de cada emissão. A interface é Flutter; a navegação no Google Chrome é feita por um motor Python local.
 
-**Em validação manual da interface.** Ainda não há instaladores ou emissão real validada. O projeto tem estrutura para Linux, Windows e macOS; os três sistemas e certificados A1/A3 precisam ser validados. Nenhum pagamento é realizado pelo app.
+**Emissão e recuperação de guias validadas em lotes reais no Linux.** Ainda não há instaladores. Windows, macOS e a compatibilidade com certificados A1/A3 em cada plataforma precisam de validação. O app emite guias; o pagamento é feito fora dele.
 
 ## Requisitos
 
@@ -39,8 +39,8 @@ O script escolhe Windows automaticamente. Não é necessário instalar Chromium 
 
 ## Preparar as empresas
 
-1. Informe nome e CNPJ do escritório/titular na interface. O app escolhe **Meu Perfil** se esse CNPJ for o da empresa; nas demais usa **Procurador**.
-2. Clique em **Template** para salvar um XLSX ou CSV vazio. Também há [template CSV](templates/empresas.csv) no repositório.
+1. Informe nome e CNPJ do titular do certificado na interface. O app escolhe **Meu Perfil** se esse CNPJ for o da empresa; nas demais usa **Procurador**.
+2. Clique em **Baixar modelo** para salvar um XLSX ou CSV vazio. Também há [template CSV](templates/empresas.csv) no repositório.
 3. Preencha e importe, ou use **Adicionar empresa** e edite na tabela. CNPJs recebem máscara automaticamente. Os campos monetários ignoram letras; aceitam reais com duas casas decimais.
 
 | Coluna | Conteúdo |
@@ -53,14 +53,16 @@ O script escolhe Windows automaticamente. Não é necessário instalar Chromium 
 | TOTAL | FGTS MENSAL + CONSIGNADO, conferido pelo app |
 | OBSERVAÇÕES | Notas do operador |
 
+**Remover todas** limpa a tabela após sua confirmação, com o lote parado. As guias salvas, o registro das emissões e as configurações são preservados.
+
 CSV usa UTF-8 e `;`. XLSX usa a primeira aba e primeira linha de cabeçalhos. O app não depende de Google Sheets nem extrai automaticamente os relatórios PDF. A transcrição dos valores deve ser conferida antes do lote.
 
 ## Emitir e acompanhar
 
 1. Selecione competência Inicial/Final no calendário (o app usa o mês/ano da data escolhida) e escolha a pasta dos PDFs. Selecione as empresas.
-2. Clique **Abrir Chrome**. Entre com GOV.BR, selecione certificado/PIN e resolva CAPTCHA pessoalmente. Aguarde o FGTS Digital abrir e use **Emitir selecionadas**. Durante o lote, o Chrome fica minimizado e aparece automaticamente quando houver uma pendência. Login concluído retoma automaticamente com o titular configurado; para divergências, corrija a causa e use **Retomar**. O botão **Abrir Chrome** também permite inspecionar a mesma janela durante o lote. Esse modo preserva cookies, certificado e histórico do perfil do app, sem alternar para headless real. Veja [funcionamento da sessão](docs/chrome.md).
+2. Clique **Abrir Chrome**. Entre com GOV.BR, selecione certificado/PIN e resolva CAPTCHA pessoalmente. Aguarde o FGTS Digital abrir e use **Emitir selecionadas**. Durante o lote, o Chrome fica minimizado e aparece automaticamente quando houver uma pendência. Login concluído retoma automaticamente com o titular configurado; para divergências, escolha **Aceitar divergência** ou **Negar divergência**. Ao negar, revise a causa e use **Retomar**. O botão **Abrir Chrome** também permite inspecionar a mesma janela durante o lote. Esse modo preserva cookies, certificado e histórico do perfil do app, sem alternar para headless real. Veja [funcionamento da sessão](docs/chrome.md).
 3. O app compara FGTS, consignados e total. Desmarca **Sem guia emitida** nas pesquisas para incluir débitos antes escondidos.
-4. Divergências pausam o lote inteiro. Revise relatórios e tabela, resolva o problema e retome. Caso o sistema de folha precise de correção, faça isso antes. **Ignorar empresa** é opção explícita.
+4. Divergências pausam o lote inteiro. **Aceitar divergência** autoriza somente os dados exibidos naquela etapa, uma vez. **Negar divergência** mantém o lote pausado para revisar relatórios e tabela; depois use **Retomar** para conferir novamente. Outras pendências mostram **Retomar**, **Ignorar empresa** e **Recuperar PDF**.
 5. O vencimento sugerido é preservado; quando hoje é sugerido para atrasados, tenta amanhã e confere os totais. Valores adicionais provocam pausa.
 6. PDF é salvo como `EMPRESA.pdf` na pasta escolhida depois de conferir CNPJ, competência, número, vencimento e total. Caracteres inválidos no nome são substituídos. Documento diferente com mesmo nome não é sobrescrito.
 

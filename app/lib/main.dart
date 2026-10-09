@@ -60,7 +60,7 @@ class _WorkspaceState extends State<Workspace> {
   final log = <String>[];
   Map<String, dynamic>? attention;
   bool ready = false, running = false, paused = false;
-  String status = 'Conectando ao motor local…', chrome = '';
+  String status = 'Iniciando o aplicativo…', chrome = '';
   StreamSubscription<Map<String, dynamic>>? subscription;
   Timer? saver;
   Map<String, dynamic> get settings => {
@@ -82,7 +82,6 @@ class _WorkspaceState extends State<Workspace> {
       setState(() {
         if (event['event'] == 'browser_visibility') return;
         if (event['event'] == 'diagnostic') {
-          log.add(event['message'].toString());
           return;
         }
         status = event['message']?.toString() ?? status;
@@ -127,11 +126,12 @@ class _WorkspaceState extends State<Workspace> {
         ready = true;
         chrome = data['chrome']?.toString() ?? '';
         status = chrome.isEmpty
-            ? 'Instale o Google Chrome para emitir.'
-            : 'Pronto para preparar o lote.';
+            ? 'Instale o Google Chrome e reabra o aplicativo para emitir guias.'
+            : 'Adicione as empresas e confira os dados antes de emitir.';
       });
     } catch (e) {
-      setState(() => status = 'Não foi possível iniciar: $e');
+      setState(() => status =
+          'Não foi possível iniciar o aplicativo. Feche e abra novamente. Se o problema continuar, reinstale o FGTS Guias.');
     }
   }
 
@@ -148,10 +148,15 @@ class _WorkspaceState extends State<Workspace> {
     });
   }
 
+  String errorMessage(Object error) {
+    if (error is String) return error;
+    return 'Não foi possível concluir esta ação. Tente novamente. Se o problema continuar, feche e abra o aplicativo.';
+  }
+
   void showError(Object e) {
     if (mounted) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.toString())));
+          .showSnackBar(SnackBar(content: Text(errorMessage(e))));
     }
   }
 
@@ -161,6 +166,45 @@ class _WorkspaceState extends State<Workspace> {
       await engine.call(command, data ?? {});
     } catch (e) {
       showError(e);
+    }
+  }
+
+  Future<void> removeAllCompanies() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remover todas as empresas?'),
+        content: Text(
+            'As ${rows.length} empresas serão removidas da tabela. As guias salvas permanecerão na pasta escolhida.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Remover todas')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || running) return;
+    saver?.cancel();
+    try {
+      await engine.call(
+          'save', {'settings': settings, 'rows': <Map<String, dynamic>>[]});
+      if (!mounted) return;
+      setState(() {
+        for (final controller in controllers.values) {
+          controller.dispose();
+        }
+        controllers.clear();
+        rows.clear();
+        states.clear();
+        attention = null;
+        status =
+            'Empresas removidas. Importe uma planilha ou adicione uma empresa para começar.';
+      });
+    } catch (error) {
+      showError(error);
     }
   }
 
@@ -188,7 +232,7 @@ class _WorkspaceState extends State<Workspace> {
 
   Future<void> export(bool template) async {
     final path = await FilePicker.platform.saveFile(
-      dialogTitle: template ? 'Salvar template' : 'Exportar empresas',
+      dialogTitle: template ? 'Salvar modelo de planilha' : 'Exportar empresas',
       fileName: template ? 'template-fgts.xlsx' : 'empresas.xlsx',
       type: FileType.custom,
       allowedExtensions: ['xlsx', 'csv'],
@@ -221,7 +265,8 @@ class _WorkspaceState extends State<Workspace> {
       (r) => r['cnpj'].toString().replaceAll(RegExp(r'\D'), '') == company,
     );
     if (matches.isEmpty) {
-      showError('Selecione a empresa pausada antes de recuperar.');
+      showError(
+          'Não foi possível identificar a empresa pausada. Confira o lote antes de recuperar a guia.');
       return;
     }
     final number = TextEditingController(), due = TextEditingController();
@@ -235,7 +280,7 @@ class _WorkspaceState extends State<Workspace> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                'Baixe a guia existente pelo Chrome. Informe os dados para conferir o PDF antes de salvá-lo na pasta escolhida.',
+                'No Chrome, baixe o PDF da guia pela Consulta de Guias. Informe o número e o vencimento, depois selecione o arquivo baixado. O app confere e salva na pasta escolhida.',
               ),
               const SizedBox(height: 20),
               TextField(
@@ -345,8 +390,8 @@ class _WorkspaceState extends State<Workspace> {
       columnSpacing: 18,
       columns: const [
         DataColumn(label: Text('Valor')),
-        DataColumn(label: Text('Esperado')),
-        DataColumn(label: Text('Portal')),
+        DataColumn(label: Text('Informado')),
+        DataColumn(label: Text('Encontrado')),
         DataColumn(label: Text('Diferença')),
       ],
       rows: [
@@ -406,7 +451,7 @@ class _WorkspaceState extends State<Workspace> {
                         const SizedBox(height: 8),
                         TextButton(
                           onPressed: ready ? () => export(true) : null,
-                          child: const Text('Baixar template'),
+                          child: const Text('Baixar modelo de planilha'),
                         ),
                       ],
                     ),
@@ -598,14 +643,14 @@ class _WorkspaceState extends State<Workspace> {
                     ),
                     const SizedBox(width: 20),
                     const Text(
-                      'Emissão assistida',
+                      'Emissão de guias em lote',
                       style: TextStyle(color: Colors.black54),
                     ),
                     const Spacer(),
                     Chip(
                       label: Text(
                         chrome.isEmpty
-                            ? 'Chrome necessário'
+                            ? 'Instale o Google Chrome'
                             : 'Google Chrome instalado',
                       ),
                     ),
@@ -617,13 +662,13 @@ class _WorkspaceState extends State<Workspace> {
                   runSpacing: 12,
                   children: [
                     field(
-                      'Escritório / titular',
+                      'Titular do certificado',
                       office,
                       width: 230,
                       enabled: !running,
                     ),
                     field(
-                      'CNPJ do escritório',
+                      'CNPJ do titular',
                       cnpj,
                       width: 200,
                       enabled: !running,
@@ -636,7 +681,7 @@ class _WorkspaceState extends State<Workspace> {
                         controller: output,
                         readOnly: true,
                         decoration: InputDecoration(
-                          labelText: 'Pasta dos PDFs',
+                          labelText: 'Pasta para salvar as guias',
                           suffixIcon: IconButton(
                             tooltip: 'Escolher pasta',
                             icon: const Icon(Icons.folder_open),
@@ -698,11 +743,18 @@ class _WorkspaceState extends State<Workspace> {
                     ),
                     TextButton(
                       onPressed: ready ? () => export(true) : null,
-                      child: const Text('Template'),
+                      child: const Text('Baixar modelo'),
                     ),
                     TextButton(
                       onPressed: ready ? () => export(false) : null,
-                      child: const Text('Exportar'),
+                      child: const Text('Exportar planilha'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: ready && !running && rows.isNotEmpty
+                          ? removeAllCompanies
+                          : null,
+                      icon: const Icon(Icons.delete_sweep_outlined),
+                      label: const Text('Remover todas'),
                     ),
                     FilledButton.icon(
                       onPressed:
@@ -763,7 +815,7 @@ class _WorkspaceState extends State<Workspace> {
                                         const Padding(
                                           padding: EdgeInsets.only(top: 12),
                                           child: Text(
-                                              'Aceitar libera somente esta conferência, uma vez. Outras divergências continuam bloqueando; a planilha não é alterada.'),
+                                              'Aceitar autoriza apenas a diferença mostrada nesta etapa. Os dados das empresas permanecem como informados.'),
                                         ),
                                       if (attention?['expected'] != null)
                                         SingleChildScrollView(
@@ -774,8 +826,8 @@ class _WorkspaceState extends State<Workspace> {
                                         const SizedBox(height: 20),
                                         Text(
                                           attention?['decision_id'] != null
-                                              ? 'Aceite esta divergência ou negue para revisar antes de continuar.'
-                                              : 'Corrija os dados ou resolva a etapa no Chrome. Retomar confere os valores novamente.',
+                                              ? 'Negar mantém o lote pausado para você revisar os dados.'
+                                              : 'Revise os dados ou resolva a pendência no Chrome. Depois, clique em Retomar para conferir novamente.',
                                         ),
                                         const SizedBox(height: 12),
                                         Wrap(
@@ -837,13 +889,13 @@ class _WorkspaceState extends State<Workspace> {
                                       ],
                                       const Divider(height: 32),
                                       const Text(
-                                        'Certificado e CAPTCHA',
+                                        'Acesso ao FGTS Digital',
                                         style: TextStyle(
                                             fontWeight: FontWeight.w600),
                                       ),
                                       const SizedBox(height: 8),
                                       const Text(
-                                        'O Chrome fica minimizado durante o lote e aparece quando precisa de você. Conclua certificado, PIN ou CAPTCHA no Chrome; a autenticação concluída retoma automaticamente. Para outras pendências, use Retomar. Abrir Chrome permite acompanhar a página.',
+                                        'Faça o login no Chrome com seu certificado e responda ao CAPTCHA, se solicitado. O lote continua automaticamente após o login. Durante a emissão, o Chrome aparece quando precisar de sua atenção.',
                                       ),
                                       TextButton(
                                         onPressed: ready && (!running || paused)
@@ -855,8 +907,7 @@ class _WorkspaceState extends State<Workspace> {
                                       const Divider(height: 24),
                                       ExpansionTile(
                                         tilePadding: EdgeInsets.zero,
-                                        title: const Text(
-                                            'Histórico desta sessão'),
+                                        title: const Text('Atividades do lote'),
                                         children: [
                                           for (final entry
                                               in log.reversed.take(20))
@@ -892,11 +943,6 @@ class _WorkspaceState extends State<Workspace> {
                       );
                     },
                   ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Dados locais · Nenhum pagamento é realizado · Salvo significa PDF conferido na pasta escolhida',
-                  style: TextStyle(fontSize: 12, color: Colors.black54),
                 ),
               ],
             ),

@@ -57,13 +57,15 @@ class EngineClient {
           if (data['ok'] == true) {
             request?.complete(Map<String, dynamic>.from(data['data']));
           } else {
-            request?.completeError(data['error'] ?? 'Falha no motor');
+            request?.completeError(data['error'] ??
+                'Não foi possível concluir a ação. Tente novamente.');
           }
         }
       } catch (_) {
         events.add({
           'event': 'attention',
-          'message': 'Resposta inválida do motor.',
+          'message':
+              'O aplicativo perdeu a comunicação com a emissão. Encerre o lote e reinicie o aplicativo.',
         });
       }
     });
@@ -72,12 +74,14 @@ class EngineClient {
         .listen((text) => events.add({'event': 'diagnostic', 'message': text}));
     process!.exitCode.then((code) {
       for (final waiter in pending.values) {
-        waiter.completeError('Motor encerrado ($code).');
+        waiter.completeError(
+            'A emissão foi interrompida. Feche e abra o aplicativo para continuar.');
       }
       pending.clear();
       events.add({
         'event': 'finished',
-        'message': 'Motor encerrado. Reinicie o aplicativo para reconectar.',
+        'message':
+            'A emissão foi interrompida. Feche e abra o aplicativo para continuar. Guias já solicitadas serão recuperadas ao retomar o lote.',
       });
     });
   }
@@ -86,7 +90,10 @@ class EngineClient {
     String command, [
     Map<String, dynamic> data = const {},
   ]) {
-    if (process == null) return Future.error('Motor indisponível');
+    if (process == null) {
+      return Future.error(
+          'A emissão está indisponível. Feche e abra o aplicativo para continuar.');
+    }
     final id = ++serial;
     final result = Completer<Map<String, dynamic>>();
     pending[id] = result;
