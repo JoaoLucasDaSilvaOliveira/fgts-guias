@@ -1,5 +1,6 @@
-from fgts_guias.__main__ import main
+from fgts_guias.__main__ import main, configure_stdio
 if __name__ == '__main__':
+    configure_stdio()
     import sys
     if sys.argv[1:] == ['--check-chrome']:
         # Exercise the frozen executable and the actual installed launcher,

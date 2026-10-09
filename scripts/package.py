@@ -41,12 +41,19 @@ shutil.copytree(root/'dist/engine/fgts-guias-engine',target)
 executable=target/('fgts-guias-engine.exe' if platform=='windows' else 'fgts-guias-engine')
 with tempfile.TemporaryDirectory() as sandbox:
     env={**os.environ,'XDG_DATA_HOME':sandbox,'APPDATA':sandbox,'LOCALAPPDATA':sandbox}
-    result=subprocess.run([str(executable)], input=json.dumps({'id':1,'command':'bootstrap'})+'\n',
-                          capture_output=True,text=True,env=env,timeout=60,check=True)
+    requests = [
+        {'id':1,'command':'bootstrap'},
+        {'id':2,'command':'start','data':{'settings':{'officeCnpj':''}}},
+    ]
+    result=subprocess.run([str(executable)], input=''.join(json.dumps(request)+'\n' for request in requests),
+                          capture_output=True,text=True,encoding='utf-8',env=env,timeout=60,check=True)
     replies=[json.loads(line) for line in result.stdout.splitlines() if line.startswith('{')]
     reply=next(item for item in replies if item.get('id')==1)
     if not reply.get('ok') or reply['data']['workspace']:
         raise SystemExit('Motor empacotado não iniciou com workspace vazio')
+    validation = next(item for item in replies if item.get('id') == 2)
+    if validation.get('ok') or 'válido' not in validation.get('error', ''):
+        raise SystemExit('Motor empacotado não respondeu à validação em UTF-8')
     subprocess.run([str(executable), '--check-chrome'], env=env, timeout=60, check=True)
 
 version=next(line.split(':',1)[1].strip().split('+')[0] for line in (root/'app/pubspec.yaml').read_text().splitlines() if line.startswith('version:'))

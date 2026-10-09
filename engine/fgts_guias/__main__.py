@@ -230,7 +230,17 @@ async def serve():
             engine.task.cancel()
             await engine.task
         await engine.portal.close()
+def configure_stdio():
+    # JSON IPC is always UTF-8. Windows pipes otherwise use the local code page,
+    # corrupting accented messages and company names for the Dart decoder.
+    for stream in (sys.stdin, sys.stdout):
+        if hasattr(stream, 'reconfigure'):
+            stream.reconfigure(encoding='utf-8')
+    if hasattr(sys.stderr, 'reconfigure'):
+        sys.stderr.reconfigure(encoding='utf-8', errors='backslashreplace')
+
 def main():
+    configure_stdio()
     asyncio.run(serve())
 if __name__ == '__main__':
     main()
