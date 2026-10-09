@@ -74,3 +74,12 @@ Operador confirmou segundo plano com a mesma janela minimizada, em vez de reinic
 ## Aceitar divergência uma vez
 
 Adicionado botão contextual junto a Retomar, com dados esperados/encontrados, etapa, data e número da guia quando conhecido. Sete testes locais verificam consumo único e auditoria, rejeição de token antigo/entrada alterada, ausência de autorização entre etapas, invalidação por retomada/cancelamento, nova decisão após alteração do portal, integração do comando com a chamada suspensa e impossibilidade de aceitar identidade incorreta no PDF. Flutter analyze sem problemas; app reaberto e terminal sem novas exceções. Nenhuma emissão real foi solicitada para esta implementação; a aceitação pelo operador em uma divergência real ainda requer validação manual.
+
+
+## Inicialização no Windows — v0.2.0 (09/10/2026)
+
+Testado o pacote distribuído em um computador Windows do operador, por SSH e tarefa temporária na sessão gráfica ativa. Google Chrome instalado foi localizado, o motor congelado respondeu ao bootstrap e o driver Playwright iniciou. Os comandos open_browser e close_browser concluíram com sucesso: a sessão CDP conectou, a janela foi minimizada/restaurada no fluxo de abertura e o navegador foi encerrado pelo motor. O processo do motor terminou com código zero.
+
+O app abriu sua janela FGTS Guias na sessão gráfica, com o motor em execução. Captura local da janela confirmou a interface renderizada, tabela e controles visíveis, sem overflow observado nessa tela. O terminal apresentou somente a informação de inicialização do renderizador Impeller, sem novas exceções. A captura, os dados do operador e as credenciais não foram publicados. Tarefa e scripts temporários foram removidos; o app ficou aberto para o operador.
+
+A tentativa de isolar dados somente por APPDATA/LOCALAPPDATA não altera o diretório nativo retornado por platformdirs no Windows. A abertura final usou o diretório normal do app, sem alterar empresas ou configurações e sem iniciar lote. Não houve login com certificado, CAPTCHA, emissão, download de guias, validação de divergências ou pagamento. Esses fluxos financeiros e a compatibilidade A1/A3 no Windows continuam pendentes de teste autorizado.
