@@ -18,10 +18,10 @@ class ExternalLaunchTests(unittest.TestCase):
 
     def test_linux_without_original_removes_bundle_library_path(self):
         with self.frozen(), patch('fgts_guias.external.sys.platform', 'linux'), patch.dict(os.environ, {
-            'LD_LIBRARY_PATH':'/bundle', 'PATH':'/bundle/bin:/bundle-other/bin:/usr/bin'}, clear=True):
+            'LD_LIBRARY_PATH':'/bundle', 'PATH':os.pathsep.join(['/bundle/bin', '/bundle-other/bin', '/usr/bin'])}, clear=True):
             child = external_environment()
             self.assertNotIn('LD_LIBRARY_PATH', child)
-            self.assertEqual(child['PATH'], '/bundle-other/bin:/usr/bin')
+            self.assertEqual(child['PATH'], os.pathsep.join(['/bundle-other/bin', '/usr/bin']))
 
     def test_development_preserves_environment(self):
         with patch('fgts_guias.external.sys.frozen', False, create=True), patch.dict(os.environ, {'LD_LIBRARY_PATH':'/user/libs'}):
