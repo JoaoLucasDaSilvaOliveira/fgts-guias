@@ -120,8 +120,20 @@ class _WorkspaceState extends State<Workspace> {
                 states.values.where((value) => value == 'reused').length;
             final skipped =
                 states.values.where((value) => value == 'skipped').length;
-            status =
-                'Lote concluído: $saved baixadas, $reused já salvas e $skipped empresas ignoradas.';
+            final results = [
+              if (saved > 0)
+                '$saved ${saved == 1 ? 'guia baixada' : 'guias baixadas'}',
+              if (reused > 0)
+                '$reused ${reused == 1 ? 'guia já salva' : 'guias já salvas'}',
+              if (skipped > 0)
+                '$skipped ${skipped == 1 ? 'empresa ignorada' : 'empresas ignoradas'}',
+            ];
+            final summary = results.length < 2
+                ? results.join()
+                : '${results.take(results.length - 1).join(', ')} e ${results.last}';
+            status = summary.isEmpty
+                ? 'Lote concluído.'
+                : 'Lote concluído. $summary.';
           }
           running = false;
           paused = false;
