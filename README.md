@@ -61,6 +61,8 @@ CSV usa UTF-8 e `;`. XLSX usa a primeira aba e primeira linha de cabeçalhos. O 
 
 Por padrão, o app confere e reaproveita os PDFs já salvos para a mesma empresa e período. Essas empresas aparecem como **Já salva** e são contadas separadamente ao concluir. Para buscar os arquivos outra vez no portal, marque **Baixar novamente guias já salvas** antes de iniciar. O app recupera a guia registrada pela Consulta de Guias, confere o PDF e mantém a proteção contra duplicidade. Uma emissão com resultado incerto também segue pela recuperação.
 
+**Reiniciar emissão** refaz as etapas no portal para as empresas e o período selecionados, após confirmação. Pode gerar outra guia para débitos já incluídos em uma emissão. Mantém o histórico e os PDFs anteriores; o arquivo recebe também o número da guia no nome. Não ignora divergências. Uma emissão com resultado incerto é recuperada primeiro. Essa escolha vale somente para o lote iniciado pelo botão.
+
 ## Emitir e acompanhar
 
 1. Selecione competência Inicial/Final no calendário (o app usa o mês/ano da data escolhida) e escolha a pasta dos PDFs. Selecione as empresas.

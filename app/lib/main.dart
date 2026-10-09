@@ -261,7 +261,32 @@ class _WorkspaceState extends State<Workspace> {
     }
   }
 
-  Future<void> start() async {
+  Future<void> restartEmission() async {
+    final selected = rows.where((row) => row['selected'] != false).length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reiniciar emissão?'),
+        content: Text(
+            'Refazer a emissão de $selected empresas, de ${initial.text} a ${finalPeriod.text}? Isso pode gerar outra guia para débitos que já têm guia emitida. Os PDFs anteriores serão mantidos. Emissões com resultado incerto serão recuperadas antes de qualquer nova tentativa.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Reiniciar emissão')),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted && !running) {
+      await startBatch(restart: true);
+    }
+  }
+
+  Future<void> start() => startBatch();
+
+  Future<void> startBatch({bool restart = false}) async {
     try {
       await persist();
       setState(() {
@@ -272,8 +297,11 @@ class _WorkspaceState extends State<Workspace> {
         paused = false;
         attention = null;
       });
-      await engine.call('start',
-          {'settings': settings, 'rows': rows.map(companyPayload).toList()});
+      await engine.call('start', {
+        'settings': settings,
+        'rows': rows.map(companyPayload).toList(),
+        'restartEmission': restart
+      });
     } catch (e) {
       if (mounted) {
         setState(() => running = false);
@@ -820,6 +848,16 @@ class _WorkspaceState extends State<Workspace> {
                           ready && !running && chrome.isNotEmpty ? start : null,
                       icon: const Icon(Icons.play_arrow),
                       label: const Text('Emitir selecionadas'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: ready &&
+                              !running &&
+                              chrome.isNotEmpty &&
+                              rows.any((row) => row['selected'] != false)
+                          ? restartEmission
+                          : null,
+                      icon: const Icon(Icons.restart_alt),
+                      label: const Text('Reiniciar emissão'),
                     ),
                     if (running)
                       OutlinedButton(

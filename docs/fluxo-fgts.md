@@ -77,3 +77,5 @@ Diferenças identificadas nos resumos de FGTS, consignados, vencimento, total fi
 ## Repetição do lote
 
 Guias salvas são revalidadas e reaproveitadas por padrão, com indicação Já salva. Para consultar e baixar novamente, o operador marca Baixar novamente guias já salvas. Recuperar pelo número registrado e conferir PDF; não clicar Emitir Guia para uma intenção ou guia já registrada. Limpar os estados visuais entre lotes, sem apagar o diário.
+
+Reiniciar emissão é uma exceção explícita, confirmada pelo operador para um único lote: refaz a seleção e as conferências mesmo com uma guia anterior concluída, podendo solicitar outra guia. Não substitui recuperação de uma emissão incerta e não autoriza divergências. A pesquisa mantém Sem guia emitida desmarcada, mas não redireciona automaticamente para reimpressão nesse modo.

@@ -151,6 +151,11 @@ class Engine:
             normalized = [normalize_row(r) for r in rows]
             if len({r['cnpj'] for r in normalized}) != len(rows):
                 raise ValueError('Há CNPJs repetidos no lote')
+            settings = dict(settings)
+            settings['restartEmission'] = data.get('restartEmission') is True
+            if settings['restartEmission']:
+                self.store.archive_restart(normalized, settings['initial'], settings['final'])
+                settings['downloadSaved'] = False
             self.browser_finished = False
             self.gate.set()
             self.task = asyncio.create_task(self.batch(rows, dict(settings)))
