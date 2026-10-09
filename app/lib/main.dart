@@ -786,13 +786,20 @@ class _WorkspaceState extends State<Workspace> {
                                             ),
                                             if (attention?['decision_id'] !=
                                                 null)
-                                              FilledButton.tonal(
+                                              FilledButton.icon(
+                                                style: FilledButton.styleFrom(
+                                                  backgroundColor:
+                                                      const Color(0xff8a4b08),
+                                                  foregroundColor: Colors.white,
+                                                ),
+                                                icon: const Icon(
+                                                    Icons.fact_check_outlined),
                                                 onPressed: () =>
                                                     act('accept_difference', {
                                                   'decision_id':
                                                       attention!['decision_id'],
                                                 }),
-                                                child: const Text(
+                                                label: const Text(
                                                     'Aceitar divergência'),
                                               ),
                                             OutlinedButton(
