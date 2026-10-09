@@ -110,7 +110,7 @@ class Engine:
                 await self.portal.visibility(False)
             except Exception as exc:
                 self.event('diagnostic', message='Não foi possível minimizar Chrome ao concluir: ' + str(exc))
-            self.event('finished', message='Lote concluído. Confira as guias salvas e as empresas ignoradas.')
+            self.event('finished', completed=True, message='Lote concluído. Confira as guias salvas e as empresas ignoradas.')
         except asyncio.CancelledError:
             if not self.browser_finished:
                 self.event('finished', message='Lote interrompido. Ao iniciar novamente, o app recupera as guias já solicitadas.')

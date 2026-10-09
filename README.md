@@ -57,6 +57,10 @@ O script escolhe Windows automaticamente. Não é necessário instalar Chromium 
 
 CSV usa UTF-8 e `;`. XLSX usa a primeira aba e primeira linha de cabeçalhos. O app não depende de Google Sheets nem extrai automaticamente os relatórios PDF. A transcrição dos valores deve ser conferida antes do lote.
 
+## Repetir um lote
+
+Por padrão, o app confere e reaproveita os PDFs já salvos para a mesma empresa e período. Essas empresas aparecem como **Já salva** e são contadas separadamente ao concluir. Para buscar os arquivos outra vez no portal, marque **Baixar novamente guias já salvas** antes de iniciar. O app recupera a guia registrada pela Consulta de Guias, confere o PDF e mantém a proteção contra duplicidade. Uma emissão com resultado incerto também segue pela recuperação.
+
 ## Emitir e acompanhar
 
 1. Selecione competência Inicial/Final no calendário (o app usa o mês/ano da data escolhida) e escolha a pasta dos PDFs. Selecione as empresas.

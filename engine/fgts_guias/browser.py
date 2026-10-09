@@ -398,6 +398,11 @@ class Portal:
         if previous and previous['state'] == 'saved':
             if any(previous['company'].get(k) != company[k] for k in ['fgts','consignado','total']):
                 raise Attention('Os valores importados mudaram após a emissão. Confira a guia existente.', recovery=True)
+            if settings.get('downloadSaved', False):
+                self.notify('progress', company=company['cnpj'],
+                    message='Buscando a guia já emitida para baixar novamente…')
+                await self.recover_from_portal(company, settings)
+                return
             path = Path(previous['path'])
             try:
                 validate_pdf(path, previous.get('verified_company', company), initial, final, previous['due'], previous['guide'])

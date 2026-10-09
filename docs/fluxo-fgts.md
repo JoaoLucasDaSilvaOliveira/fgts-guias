@@ -73,3 +73,7 @@ Fluxo implementado: download de emissão excedeu 5 segundos → abrir Consulta d
 ## Decisão única do operador
 
 Diferenças identificadas nos resumos de FGTS, consignados, vencimento, total final, candidata única da consulta e valores/datas do PDF podem suspender a conferência com **Aceitar divergência**. Mostrar esperado/encontrado e guia quando conhecida. Aceitar continua daquela conferência, uma vez, após reler os dados; não pula a empresa nem repete a emissão. Uma divergência em outra etapa continua bloqueando mesmo se os números forem iguais aos anteriormente aceitos. Se a consulta não identifica uma candidata única, o operador precisa identificar a guia — aceitar uma divergência não escolhe uma guia arbitrária.
+
+## Repetição do lote
+
+Guias salvas são revalidadas e reaproveitadas por padrão, com indicação Já salva. Para consultar e baixar novamente, o operador marca Baixar novamente guias já salvas. Recuperar pelo número registrado e conferir PDF; não clicar Emitir Guia para uma intenção ou guia já registrada. Limpar os estados visuais entre lotes, sem apagar o diário.

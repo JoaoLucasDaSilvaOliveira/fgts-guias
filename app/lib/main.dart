@@ -60,6 +60,7 @@ class _WorkspaceState extends State<Workspace> {
   final log = <String>[];
   Map<String, dynamic>? attention;
   bool ready = false, running = false, paused = false;
+  bool downloadSaved = false;
   String status = 'Iniciando o aplicativo…', chrome = '';
   StreamSubscription<Map<String, dynamic>>? subscription;
   Timer? saver;
@@ -69,6 +70,7 @@ class _WorkspaceState extends State<Workspace> {
         'initial': initial.text,
         'final': finalPeriod.text,
         'output': output.text,
+        'downloadSaved': downloadSaved,
       };
   @override
   void initState() {
@@ -97,9 +99,23 @@ class _WorkspaceState extends State<Workspace> {
           attention = null;
         }
         if (event['event'] == 'saved') {
-          status = 'PDF conferido e salvo: ${event['path']}';
+          final reused = event['reused'] == true;
+          states[event['company'].toString()] = reused ? 'reused' : 'saved';
+          status = reused
+              ? 'Guia já salva e conferida: ${event['path']}'
+              : 'PDF conferido e salvo: ${event['path']}';
         }
         if (event['event'] == 'finished') {
+          if (event['completed'] == true) {
+            final saved =
+                states.values.where((value) => value == 'saved').length;
+            final reused =
+                states.values.where((value) => value == 'reused').length;
+            final skipped =
+                states.values.where((value) => value == 'skipped').length;
+            status =
+                'Lote concluído: $saved baixadas, $reused já salvas e $skipped empresas ignoradas.';
+          }
           running = false;
           paused = false;
           attention = null;
@@ -118,6 +134,7 @@ class _WorkspaceState extends State<Workspace> {
       initial.text = config['initial'] ?? '';
       finalPeriod.text = config['final'] ?? '';
       output.text = config['output'] ?? '';
+      downloadSaved = config['downloadSaved'] == true;
       rows = (workspace['rows'] as List? ?? [])
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
@@ -246,6 +263,9 @@ class _WorkspaceState extends State<Workspace> {
     try {
       await persist();
       setState(() {
+        states.clear();
+        log.clear();
+        status = 'Iniciando o lote…';
         running = true;
         paused = false;
         attention = null;
@@ -582,6 +602,7 @@ class _WorkspaceState extends State<Workspace> {
                                         Text(
                                           {
                                                 'saved': 'Salvo',
+                                                'reused': 'Já salva',
                                                 'attention': 'Atenção',
                                                 'progress': 'Em andamento',
                                                 'skipped': 'Ignorada',
@@ -710,6 +731,20 @@ class _WorkspaceState extends State<Workspace> {
                       icon: const Icon(Icons.open_in_browser),
                       label: const Text('Abrir Chrome')),
                 ]),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: const Text('Baixar novamente guias já salvas'),
+                  subtitle: const Text(
+                      'Busca a guia existente no portal. Desmarcado, confere e reaproveita o PDF salvo.'),
+                  value: downloadSaved,
+                  onChanged: ready && !running
+                      ? (value) {
+                          setState(() => downloadSaved = value ?? false);
+                          changed();
+                        }
+                      : null,
+                ),
                 const SizedBox(height: 20),
                 Wrap(
                   spacing: 8,
