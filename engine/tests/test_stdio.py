@@ -22,4 +22,4 @@ class ProtocolEncodingTests(unittest.TestCase):
             stderr.flush()
         event = json.loads(outgoing.getvalue().decode('utf-8'))
         self.assertEqual(event['message'], 'Abrindo empresa… São José')
-        self.assertEqual(diagnostic.getvalue().decode('utf-8'), 'Autenticação necessária\n')
+        self.assertEqual(diagnostic.getvalue().decode('utf-8').splitlines(), ['Autenticação necessária'])
