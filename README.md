@@ -57,16 +57,19 @@ O script escolhe Windows automaticamente. Não é necessário instalar Chromium 
 
 CSV usa UTF-8 e `;`. XLSX usa a primeira aba e primeira linha de cabeçalhos. O app não depende de Google Sheets nem extrai automaticamente os relatórios PDF. A transcrição dos valores deve ser conferida antes do lote.
 
-## Repetir um lote
+## Otimização do download
 
-Por padrão, o app confere e reaproveita os PDFs já salvos para a mesma empresa e período. Essas empresas aparecem como **Já salva** e são contadas separadamente ao concluir. Para buscar os arquivos outra vez no portal, abra **Opções de emissão**, na seta ao lado do botão principal, e marque **Baixar novamente guias já salvas**. O botão muda para **Baixar selecionadas**. O app recupera a guia registrada pela Consulta de Guias, confere o PDF e mantém a proteção contra duplicidade. Uma emissão com resultado incerto também segue pela recuperação.
+Ao lado de **Baixar selecionadas**, escolha:
 
-**Opções de emissão → Reiniciar emissão** refaz as etapas no portal para as empresas e o período selecionados, após confirmação. Pode gerar outra guia para débitos já incluídos em uma emissão. Mantém o histórico e os PDFs anteriores; o arquivo recebe também o número da guia no nome. Não ignora divergências. Uma emissão com resultado incerto é recuperada primeiro. Essa escolha vale somente para o lote iniciado pelo botão.
+- **Baixar mesma guia:** confere e reutiliza o PDF salvo, se disponível. Caso contrário, busca a guia no portal.
+- **Baixar nova guia:** sempre faz novo download da guia existente, mesmo com PDF salvo.
+
+As opções não solicitam uma segunda emissão para um débito com guia registrada. Quando não há guia, o app segue o fluxo normal de emissão e conferência. Resultados incertos são recuperados antes de prosseguir.
 
 ## Emitir e acompanhar
 
 1. Selecione competência Inicial/Final no calendário (o app usa o mês/ano da data escolhida) e escolha a pasta dos PDFs. Selecione as empresas.
-2. Clique **Abrir Chrome**. Entre com GOV.BR, selecione certificado/PIN e resolva CAPTCHA pessoalmente. Aguarde o FGTS Digital abrir e use **Emitir selecionadas**. Durante o lote, o Chrome fica minimizado e aparece automaticamente quando houver uma pendência. Login concluído retoma automaticamente com o titular configurado; para divergências, escolha **Aceitar divergência** ou **Negar divergência**. Ao negar, revise a causa e use **Retomar**. O botão **Abrir Chrome** também permite inspecionar a mesma janela durante o lote. Esse modo preserva cookies, certificado e histórico do perfil do app, sem alternar para headless real. Veja [funcionamento da sessão](docs/chrome.md).
+2. Clique **Abrir Chrome**. Entre com GOV.BR, selecione certificado/PIN e resolva CAPTCHA pessoalmente. Aguarde o FGTS Digital abrir e use **Baixar selecionadas**. Durante o lote, o Chrome fica minimizado e aparece automaticamente quando houver uma pendência. Login concluído retoma automaticamente com o titular configurado; para divergências, escolha **Aceitar divergência** ou **Negar divergência**. Ao negar, revise a causa e use **Retomar**. O botão **Abrir Chrome** também permite inspecionar a mesma janela durante o lote. Esse modo preserva cookies, certificado e histórico do perfil do app, sem alternar para headless real. Veja [funcionamento da sessão](docs/chrome.md).
 3. O app compara FGTS, consignados e total. Desmarca **Sem guia emitida** nas pesquisas para incluir débitos antes escondidos.
 4. Divergências pausam o lote inteiro. **Aceitar divergência** autoriza somente os dados exibidos naquela etapa, uma vez. **Negar divergência** mantém o lote pausado para revisar relatórios e tabela; depois use **Retomar** para conferir novamente. Outras pendências mostram **Retomar**, **Ignorar empresa** e **Recuperar PDF**.
 5. O vencimento sugerido é preservado; quando hoje é sugerido para atrasados, tenta amanhã e confere os totais. Valores adicionais provocam pausa.

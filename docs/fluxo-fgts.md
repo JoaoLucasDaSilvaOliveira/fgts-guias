@@ -78,4 +78,4 @@ Diferenças identificadas nos resumos de FGTS, consignados, vencimento, total fi
 
 Guias salvas são revalidadas e reaproveitadas por padrão, com indicação Já salva. Para consultar e baixar novamente, o operador marca Baixar novamente guias já salvas. Recuperar pelo número registrado e conferir PDF; não clicar Emitir Guia para uma intenção ou guia já registrada. Limpar os estados visuais entre lotes, sem apagar o diário.
 
-Reiniciar emissão é uma exceção explícita, confirmada pelo operador para um único lote: refaz a seleção e as conferências mesmo com uma guia anterior concluída, podendo solicitar outra guia. Não substitui recuperação de uma emissão incerta e não autoriza divergências. A pesquisa mantém Sem guia emitida desmarcada, mas não redireciona automaticamente para reimpressão nesse modo.
+As opções de otimização agora são Baixar mesma guia (reutiliza PDF salvo e conferido, se disponível) e Baixar nova guia (faz novo download da guia existente). O operador esclareceu que não deseja nova emissão para uma guia já registrada. Reiniciar emissão deixou de ser oferecido. Ambas as opções preservam a recuperação de resultados incertos.

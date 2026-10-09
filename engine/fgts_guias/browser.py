@@ -270,8 +270,6 @@ class Portal:
         body = await self.text()
         if 'Nenhum item encontrado' in body:
             raise Attention('Nenhum débito encontrado, mesmo incluindo guias emitidas. Confira no sistema de folha.')
-        if settings.get('restartEmission', False):
-            return False
         pending = self.page.locator('[tooltip*="guias aguardando pagamento"], [title*="guias aguardando pagamento"], [data-original-title*="guias aguardando pagamento"], [ngbtooltip*="guias aguardando pagamento"]')
         if await pending.count() or 'Existem guias aguardando pagamento' in body:
             await self.reprint(company, settings)
@@ -397,7 +395,7 @@ class Portal:
         initial, final = settings['initial'], settings['final']
         key = self.store.job_key(company, initial, final)
         previous = self.store.job(key)
-        if previous and previous['state'] == 'saved' and not settings.get('restartEmission', False):
+        if previous and previous['state'] == 'saved':
             if any(previous['company'].get(k) != company[k] for k in ['fgts','consignado','total']):
                 raise Attention('Os valores importados mudaram após a emissão. Confira a guia existente.', recovery=True)
             if settings.get('downloadSaved', False):
@@ -559,8 +557,6 @@ class Portal:
         folder = Path(settings['output'])
         folder.mkdir(parents=True, exist_ok=True)
         filename = company['empresa']
-        if settings.get('restartEmission', False):
-            filename += ' - ' + number
         target = folder / safe_filename(filename)
         temp = folder / ('.' + target.name + '.' + uuid.uuid4().hex + '.part')
         job['temporary'] = str(temp)

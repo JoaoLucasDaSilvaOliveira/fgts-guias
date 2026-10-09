@@ -1,7 +1,5 @@
 import json
 import sqlite3
-import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 from platformdirs import user_data_dir
 
@@ -38,15 +36,3 @@ class Storage:
     def record_decision(self, value):
         self.db.execute('INSERT INTO decisions VALUES (?,?)', (value['id'], json.dumps(value)))
         self.db.commit()
-
-    def archive_restart(self, companies, initial, final):
-        # Keep the current job: uncertain emissions must remain recoverable.
-        with self.db:
-            for company in companies:
-                key = self.job_key(company, initial, final)
-                previous = self.job(key)
-                if previous:
-                    value = {'action':'restart_emission', 'requested_at':datetime.now(timezone.utc).isoformat(),
-                             'previous':previous, 'company':company}
-                    self.db.execute('INSERT INTO emission_history VALUES (?,?,?)',
-                        (uuid.uuid4().hex, key, json.dumps(value)))

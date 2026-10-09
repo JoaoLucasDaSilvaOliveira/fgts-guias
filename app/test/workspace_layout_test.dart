@@ -56,17 +56,24 @@ void main() {
       await tester.pumpWidget(GuideApp(engine: FakeEngine()));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(find.text('Emitir selecionadas'), findsOneWidget);
-      expect(find.text('Baixar novamente guias já salvas'), findsNothing);
-      await tester.tap(find.byTooltip('Opções de emissão'));
+      expect(find.text('Baixar selecionadas'), findsOneWidget);
+      expect(
+          find.text('Faz novo download, mesmo com PDF salvo.'), findsNothing);
+      await tester.tap(find.byTooltip('Otimização do download'));
       await tester.pumpAndSettle();
-      expect(find.text('Baixar novamente guias já salvas'), findsOneWidget);
-      expect(find.text('Reiniciar emissão'), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('download-saved-option')));
+      expect(
+          find.text('Reutiliza o PDF salvo, se disponível.'), findsOneWidget);
+      expect(
+          find.text('Faz novo download, mesmo com PDF salvo.'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('download-new-option')));
       await tester.pumpAndSettle();
       expect(find.text('Baixar selecionadas'), findsOneWidget);
+      expect(find.text('Baixar nova guia'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.tap(find.text('Configuração do lote'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byTooltip('Fechar configuração'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     });

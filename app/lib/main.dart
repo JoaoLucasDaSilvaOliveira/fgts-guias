@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'inputs.dart';
 import 'package:file_picker/file_picker.dart';
@@ -49,6 +50,7 @@ class Workspace extends StatefulWidget {
 
 class _WorkspaceState extends State<Workspace> {
   late final EngineClient engine;
+  final scaffoldKey = GlobalKey<ScaffoldState>();
   final tableScroll = ScrollController();
   final tableHorizontalScroll = ScrollController();
   final office = TextEditingController(),
@@ -263,32 +265,9 @@ class _WorkspaceState extends State<Workspace> {
     }
   }
 
-  Future<void> restartEmission() async {
-    final selected = rows.where((row) => row['selected'] != false).length;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reiniciar emissão?'),
-        content: Text(
-            'Refazer a emissão de $selected empresas, de ${initial.text} a ${finalPeriod.text}? Isso pode gerar outra guia para débitos que já têm guia emitida. Os PDFs anteriores serão mantidos. Emissões com resultado incerto serão recuperadas antes de qualquer nova tentativa.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Reiniciar emissão')),
-        ],
-      ),
-    );
-    if (confirmed == true && mounted && !running) {
-      await startBatch(restart: true);
-    }
-  }
-
   Future<void> start() => startBatch();
 
-  Future<void> startBatch({bool restart = false}) async {
+  Future<void> startBatch() async {
     try {
       await persist();
       setState(() {
@@ -302,7 +281,6 @@ class _WorkspaceState extends State<Workspace> {
       await engine.call('start', {
         'settings': settings,
         'rows': rows.map(companyPayload).toList(),
-        'restartEmission': restart
       });
     } catch (e) {
       if (mounted) {
@@ -486,63 +464,104 @@ class _WorkspaceState extends State<Workspace> {
     changed();
   }
 
+  void openConfiguration() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) scaffoldKey.currentState?.openEndDrawer();
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  void closeConfiguration() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) scaffoldKey.currentState?.closeEndDrawer();
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
   Widget settingsCard() => Material(
         color: Colors.white,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: Color(0xffdce3dc)),
-        ),
+            borderRadius: BorderRadius.circular(14),
+            side: const BorderSide(color: Color(0xffdce3dc))),
         clipBehavior: Clip.antiAlias,
-        child: ExpansionTile(
-          key: ValueKey('settings-$ready'),
-          initiallyExpanded:
-              ready && (cnpj.text.isEmpty || output.text.isEmpty),
-          shape: const Border(),
-          collapsedShape: const Border(),
-          leading: const Icon(Icons.tune, size: 20),
-          title: const Text('Configuração do lote',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: initial.text.isEmpty
-              ? null
-              : Text(
-                  '${office.text} · ${initial.text} a ${finalPeriod.text}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-          childrenPadding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-          children: [
-            Wrap(spacing: 12, runSpacing: 12, children: [
-              field('Titular do certificado', office,
-                  width: 220, enabled: !running),
-              field('CNPJ do titular', cnpj, width: 200, enabled: !running),
-              competence('Período inicial', initial),
-              competence('Período final', finalPeriod),
-              SizedBox(
-                  width: 300,
-                  child: TextField(
-                    controller: output,
-                    readOnly: true,
-                    decoration: InputDecoration(
-                      labelText: 'Pasta das guias',
-                      suffixIcon: IconButton(
-                        tooltip: 'Escolher pasta',
-                        icon: const Icon(Icons.folder_open),
-                        onPressed: running
-                            ? null
-                            : () async {
-                                final path = await FilePicker.platform
-                                    .getDirectoryPath();
-                                if (path != null) {
-                                  setState(() => output.text = path);
-                                  changed();
-                                }
-                              },
-                      ),
-                    ),
-                  )),
-            ]),
-          ],
+        child: InkWell(
+          onTap: openConfiguration,
+          child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Row(children: [
+                const Icon(Icons.tune, size: 20),
+                const SizedBox(width: 12),
+                const Text('Configuração do lote',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(width: 20),
+                Expanded(
+                    child: Text(
+                        initial.text.isEmpty
+                            ? ''
+                            : '${office.text} · ${initial.text} a ${finalPeriod.text}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(color: Colors.black54))),
+                const SizedBox(width: 12),
+                const Icon(Icons.chevron_right),
+              ])),
         ),
+      );
+
+  Widget settingsDrawer() => Drawer(
+        width: 440,
+        child: SafeArea(
+            child: SingleChildScrollView(
+                child: Padding(
+          padding: const EdgeInsets.all(24),
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Expanded(
+                  child: Text('Configuração do lote',
+                      style: TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.w600))),
+              IconButton(
+                  tooltip: 'Fechar configuração',
+                  onPressed: closeConfiguration,
+                  icon: const Icon(Icons.close))
+            ]),
+            const SizedBox(height: 24),
+            field('Titular do certificado', office,
+                width: double.infinity, enabled: !running),
+            const SizedBox(height: 16),
+            field('CNPJ do titular', cnpj,
+                width: double.infinity, enabled: !running),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(child: competence('Período inicial', initial)),
+              const SizedBox(width: 12),
+              Expanded(child: competence('Período final', finalPeriod))
+            ]),
+            const SizedBox(height: 16),
+            TextField(
+              controller: output,
+              readOnly: true,
+              decoration: InputDecoration(
+                  labelText: 'Pasta das guias',
+                  suffixIcon: IconButton(
+                    tooltip: 'Escolher pasta',
+                    icon: const Icon(Icons.folder_open),
+                    onPressed: running
+                        ? null
+                        : () async {
+                            final path =
+                                await FilePicker.platform.getDirectoryPath();
+                            if (path != null) {
+                              setState(() => output.text = path);
+                              changed();
+                            }
+                          },
+                  )),
+            ),
+          ]),
+        ))),
       );
 
   Widget emissionActions() => Wrap(
@@ -557,51 +576,63 @@ class _WorkspaceState extends State<Workspace> {
                       rows.any((r) => r['selected'] != false)
                   ? start
                   : null,
-              icon: Icon(
-                  downloadSaved ? Icons.download_outlined : Icons.play_arrow),
-              label: Text(downloadSaved
-                  ? 'Baixar selecionadas'
-                  : 'Emitir selecionadas'),
+              icon: const Icon(Icons.download_outlined),
+              label: const Text('Baixar selecionadas'),
             ),
             PopupMenuButton<String>(
               enabled: ready,
-              tooltip: 'Opções de emissão',
+              tooltip: 'Otimização do download',
               constraints: const BoxConstraints(minWidth: 320, maxWidth: 360),
               onSelected: (value) {
-                if (value == 'download') {
-                  setState(() => downloadSaved = !downloadSaved);
-                  changed();
-                } else if (value == 'restart') {
-                  restartEmission();
-                }
+                setState(() => downloadSaved = value == 'new');
+                changed();
               },
               itemBuilder: (_) => [
-                CheckedPopupMenuItem(
-                    key: const ValueKey('download-saved-option'),
-                    value: 'download',
-                    checked: downloadSaved,
-                    height: 64,
-                    child: const SizedBox(
-                        width: 210,
-                        child: Text('Baixar novamente guias já salvas'))),
-                const PopupMenuDivider(),
-                PopupMenuItem(
-                    value: 'restart',
-                    enabled: chrome.isNotEmpty &&
-                        rows.any((r) => r['selected'] != false),
-                    child: const Row(children: [
-                      Icon(Icons.restart_alt, size: 18),
-                      SizedBox(width: 12),
-                      Flexible(child: Text('Reiniciar emissão'))
-                    ])),
+                for (final option in ['same', 'new'])
+                  PopupMenuItem(
+                      value: option,
+                      height: 76,
+                      key: ValueKey('download-$option-option'),
+                      child: Row(children: [
+                        Icon(
+                            downloadSaved == (option == 'new')
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_unchecked,
+                            size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                            child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                              Text(
+                                  option == 'same'
+                                      ? 'Baixar mesma guia'
+                                      : 'Baixar nova guia',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 4),
+                              Text(
+                                  option == 'same'
+                                      ? 'Reutiliza o PDF salvo, se disponível.'
+                                      : 'Faz novo download, mesmo com PDF salvo.',
+                                  style: const TextStyle(
+                                      fontSize: 12, color: Colors.black54)),
+                            ])),
+                      ])),
               ],
               child: Container(
                 height: 44,
-                width: 44,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
                     border: Border.all(color: const Color(0xffb9c8bd)),
                     borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.keyboard_arrow_down, color: ink),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text(
+                      downloadSaved ? 'Baixar nova guia' : 'Baixar mesma guia'),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.expand_more, size: 18),
+                ]),
               ),
             ),
           ] else ...[
@@ -663,7 +694,7 @@ class _WorkspaceState extends State<Workspace> {
                       ])),
                 ),
               ]);
-          if (size.maxWidth >= 650) {
+          if (size.maxWidth >= 940) {
             return Row(children: [
               Expanded(child: companies),
               const SizedBox(width: 12),
@@ -721,193 +752,196 @@ class _WorkspaceState extends State<Workspace> {
                       ],
                     ),
                   ))
-                : Scrollbar(
-                    controller: tableScroll,
-                    notificationPredicate: (notification) =>
-                        notification.metrics.axis == Axis.vertical,
-                    child: Scrollbar(
-                      controller: tableHorizontalScroll,
-                      thumbVisibility: true,
-                      scrollbarOrientation: ScrollbarOrientation.bottom,
-                      notificationPredicate: (notification) =>
-                          notification.metrics.axis == Axis.horizontal,
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 14, right: 12),
-                        child: SingleChildScrollView(
-                          controller: tableHorizontalScroll,
-                          scrollDirection: Axis.horizontal,
-                          child: SingleChildScrollView(
-                            controller: tableScroll,
-                            child: DataTable(
-                              showCheckboxColumn: true,
-                              columnSpacing: 22,
-                              headingRowColor: WidgetStateProperty.all(
-                                const Color(0xffe6ebe5),
-                              ),
-                              columns: [
-                                for (final label in [
-                                  'COD',
-                                  'EMPRESA',
-                                  'CNPJ',
-                                  'FGTS MENSAL',
-                                  'CONSIGNADO',
-                                  'TOTAL',
-                                  'OBSERVAÇÕES',
-                                  'SITUAÇÃO',
-                                  '',
-                                ])
-                                  DataColumn(
-                                    label: Text(
-                                      label,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                              rows: [
-                                for (final row in rows)
-                                  DataRow(
-                                    selected: row['selected'] != false,
-                                    onSelectChanged: running
-                                        ? null
-                                        : (value) {
-                                            setState(
-                                                () => row['selected'] = value);
-                                            changed();
-                                          },
-                                    cells: [
-                                      for (final key in [
-                                        'cod',
-                                        'empresa',
-                                        'cnpj',
-                                        'fgts',
-                                        'consignado',
-                                        'total',
-                                        'observacoes',
-                                      ])
-                                        DataCell(
-                                          SizedBox(
-                                            width: key == 'empresa'
-                                                ? 220
-                                                : key == 'observacoes'
-                                                    ? 230
-                                                    : key == 'cnpj'
-                                                        ? 165
-                                                        : 100,
-                                            child: TextFormField(
-                                              key: ValueKey(
-                                                '${identityHashCode(row)}-$key',
-                                              ),
-                                              controller: controllers
-                                                  .putIfAbsent(
-                                                      row,
-                                                      () => CompanyControllers(
-                                                          row))
-                                                  .fields[key],
-                                              inputFormatters: key == 'cnpj'
-                                                  ? [CnpjFormatter()]
-                                                  : [
-                                                      'fgts',
-                                                      'consignado',
-                                                      'total'
-                                                    ].contains(key)
-                                                      ? [MoneyFormatter()]
-                                                      : null,
-                                              keyboardType: [
-                                                'fgts',
-                                                'consignado',
-                                                'total'
-                                              ].contains(key)
-                                                  ? const TextInputType
-                                                      .numberWithOptions(
-                                                      decimal: true)
-                                                  : key == 'cnpj'
-                                                      ? TextInputType.number
-                                                      : TextInputType.text,
-                                              enabled: !running ||
-                                                  (paused &&
-                                                      [
-                                                        'fgts',
-                                                        'consignado',
-                                                        'total',
-                                                        'observacoes'
-                                                      ].contains(key)),
-                                              readOnly: key == 'total',
-                                              decoration: InputDecoration(
-                                                border: InputBorder.none,
-                                                hintText: [
-                                                  'fgts',
-                                                  'consignado',
-                                                  'total'
-                                                ].contains(key)
-                                                    ? '0,00'
-                                                    : null,
-                                                filled: key == 'total',
-                                                fillColor:
-                                                    const Color(0xffdce3dc),
-                                              ),
-                                              onChanged: (value) {
-                                                row[key] = value;
-                                                if (key == 'fgts' ||
-                                                    key == 'consignado') {
-                                                  row['total'] = rowTotal(row);
-                                                  controllers[row]
-                                                          ?.fields['total']
-                                                          ?.text =
-                                                      companyFieldText(
-                                                          row, 'total');
-                                                }
-                                                changed();
-                                              },
-                                            ),
-                                          ),
-                                        ),
-                                      DataCell(
-                                        Text(
-                                          {
-                                                'saved': 'Salvo',
-                                                'reused': 'Já salva',
-                                                'attention': 'Atenção',
-                                                'progress': 'Em andamento',
-                                                'skipped': 'Ignorada',
-                                                'finished': 'Interrompida',
-                                              }[states[row['cnpj']
-                                                  .toString()
-                                                  .replaceAll(
-                                                      RegExp(r'\D'), '')]] ??
-                                              'Preparada',
-                                        ),
-                                      ),
-                                      DataCell(
-                                        IconButton(
-                                          tooltip: 'Remover empresa',
-                                          icon:
-                                              const Icon(Icons.close, size: 18),
-                                          onPressed: running
-                                              ? null
-                                              : () {
-                                                  setState(
-                                                      () => rows.remove(row));
-                                                  maskRows();
-                                                  changed();
-                                                },
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                : companyGrid(),
           ),
         ],
       );
+
+  static const gridKeys = [
+    'cod',
+    'empresa',
+    'cnpj',
+    'fgts',
+    'consignado',
+    'total',
+    'observacoes',
+    'status',
+    'remove'
+  ];
+  static const gridLabels = [
+    'COD',
+    'EMPRESA',
+    'CNPJ',
+    'FGTS MENSAL',
+    'CONSIGNADO',
+    'TOTAL',
+    'OBSERVAÇÕES',
+    'SITUAÇÃO',
+    ''
+  ];
+  static const gridWidths = [
+    90.0,
+    220.0,
+    165.0,
+    120.0,
+    120.0,
+    120.0,
+    230.0,
+    140.0,
+    44.0
+  ];
+
+  Widget companyInput(Map<String, dynamic> row, String key) => TextFormField(
+        key: ValueKey('${identityHashCode(row)}-$key'),
+        controller: controllers
+            .putIfAbsent(row, () => CompanyControllers(row))
+            .fields[key],
+        inputFormatters: key == 'cnpj'
+            ? [CnpjFormatter()]
+            : ['fgts', 'consignado'].contains(key)
+                ? [MoneyFormatter()]
+                : null,
+        keyboardType: ['fgts', 'consignado', 'total'].contains(key)
+            ? const TextInputType.numberWithOptions(decimal: true)
+            : key == 'cnpj'
+                ? TextInputType.number
+                : TextInputType.text,
+        textAlign: ['fgts', 'consignado', 'total'].contains(key)
+            ? TextAlign.right
+            : TextAlign.left,
+        enabled: !running ||
+            (paused &&
+                ['fgts', 'consignado', 'total', 'observacoes'].contains(key)),
+        readOnly: key == 'total',
+        decoration: InputDecoration(
+            border: InputBorder.none,
+            hintText:
+                ['fgts', 'consignado', 'total'].contains(key) ? '0,00' : null),
+        onChanged: (value) {
+          row[key] = value;
+          if (key == 'fgts' || key == 'consignado') {
+            row['total'] = rowTotal(row);
+            controllers[row]?.fields['total']?.text =
+                companyFieldText(row, 'total');
+          }
+          changed();
+        },
+      );
+
+  Widget gridRow(Map<String, dynamic>? row) {
+    final header = row == null;
+    return Container(
+      height: 56,
+      decoration: BoxDecoration(
+          color: header
+              ? const Color(0xffe6ebe5)
+              : row['selected'] != false
+                  ? const Color(0xfff0f4ef)
+                  : Colors.white,
+          border: const Border(bottom: BorderSide(color: Color(0xffe0e6df)))),
+      child: Row(children: [
+        SizedBox(
+            width: 48,
+            child: Checkbox(
+              value: header
+                  ? rows.every((r) => r['selected'] != false)
+                  : row['selected'] != false,
+              onChanged: running
+                  ? null
+                  : (value) {
+                      setState(() {
+                        if (header) {
+                          for (final r in rows) {
+                            r['selected'] = value;
+                          }
+                        } else {
+                          row['selected'] = value;
+                        }
+                      });
+                      changed();
+                    },
+            )),
+        for (var index = 0; index < gridKeys.length; index++)
+          Container(
+            width: gridWidths[index],
+            height: 56,
+            padding: EdgeInsets.symmetric(
+                horizontal: gridKeys[index] == 'remove' ? 0 : 12),
+            alignment: Alignment.centerLeft,
+            color: gridKeys[index] == 'total' ? const Color(0xffdce3dc) : null,
+            child: header
+                ? Text(gridLabels[index],
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 12))
+                : gridKeys[index] == 'status'
+                    ? Text({
+                          'saved': 'Salvo',
+                          'reused': 'Já salva',
+                          'attention': 'Atenção',
+                          'progress': 'Em andamento',
+                          'skipped': 'Ignorada',
+                          'finished': 'Interrompida'
+                        }[states[row['cnpj']
+                            .toString()
+                            .replaceAll(RegExp(r'\D'), '')]] ??
+                        'Preparada')
+                    : gridKeys[index] == 'remove'
+                        ? IconButton(
+                            tooltip: 'Remover empresa',
+                            icon: const Icon(Icons.close, size: 18),
+                            onPressed: running
+                                ? null
+                                : () {
+                                    setState(() => rows.remove(row));
+                                    maskRows();
+                                    changed();
+                                  })
+                        : companyInput(row, gridKeys[index]),
+          ),
+      ]),
+    );
+  }
+
+  Widget companyGrid() => LayoutBuilder(builder: (context, constraints) {
+        final width =
+            48 + gridWidths.fold<double>(0, (sum, value) => sum + value);
+        return Scrollbar(
+          controller: tableHorizontalScroll,
+          thumbVisibility: true,
+          notificationPredicate: (notification) =>
+              notification.metrics.axis == Axis.horizontal,
+          child: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: SingleChildScrollView(
+                controller: tableHorizontalScroll,
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                    width: width,
+                    height: constraints.maxHeight - 12,
+                    child: Column(children: [
+                      gridRow(null),
+                      Expanded(
+                          child: Scrollbar(
+                        controller: tableScroll,
+                        notificationPredicate: (notification) =>
+                            notification.metrics.axis == Axis.vertical,
+                        child: ListView.builder(
+                            controller: tableScroll,
+                            itemExtent: 56,
+                            scrollCacheExtent:
+                                const ScrollCacheExtent.pixels(112),
+                            itemCount: rows.length,
+                            itemBuilder: (context, index) =>
+                                gridRow(rows[index])),
+                      )),
+                    ])),
+              )),
+        );
+      });
   @override
   Widget build(BuildContext context) => Scaffold(
+        key: scaffoldKey,
+        endDrawer: settingsDrawer(),
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(20),
@@ -1055,6 +1089,12 @@ class _WorkspaceState extends State<Workspace> {
                                       ],
                                       const Divider(height: 32),
                                       ExpansionTile(
+                                        maintainState: true,
+                                        expansionAnimationStyle:
+                                            const AnimationStyle(
+                                                duration:
+                                                    Duration(milliseconds: 160),
+                                                curve: Curves.easeOutCubic),
                                         tilePadding: EdgeInsets.zero,
                                         title: const Text('Atividades do lote'),
                                         children: [
