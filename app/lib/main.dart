@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'inputs.dart';
 import 'package:file_picker/file_picker.dart';
@@ -55,8 +54,6 @@ class _WorkspaceState extends State<Workspace> {
       output = TextEditingController();
   List<Map<String, dynamic>> rows = [];
   final controllers = <Map<String, dynamic>, CompanyControllers>{};
-  final debugPort = TextEditingController(text: '9222');
-  String browserMode = 'managed';
   final states = <String, String>{};
   final log = <String>[];
   Map<String, dynamic>? attention;
@@ -70,8 +67,6 @@ class _WorkspaceState extends State<Workspace> {
         'initial': initial.text,
         'final': finalPeriod.text,
         'output': output.text,
-        'browserMode': browserMode,
-        'debugPort': debugPort.text,
       };
   @override
   void initState() {
@@ -105,6 +100,7 @@ class _WorkspaceState extends State<Workspace> {
         if (event['event'] == 'finished') {
           running = false;
           paused = false;
+          attention = null;
         }
         log.add(status);
         if (log.length > 80) log.removeAt(0);
@@ -117,8 +113,6 @@ class _WorkspaceState extends State<Workspace> {
       final config = Map<String, dynamic>.from(workspace['settings'] ?? {});
       office.text = config['officeName'] ?? '';
       cnpj.text = maskCnpj(config['officeCnpj'] ?? '');
-      browserMode = config['browserMode'] ?? 'managed';
-      debugPort.text = config['debugPort']?.toString() ?? '9222';
       initial.text = config['initial'] ?? '';
       finalPeriod.text = config['final'] ?? '';
       output.text = config['output'] ?? '';
@@ -204,13 +198,16 @@ class _WorkspaceState extends State<Workspace> {
   Future<void> start() async {
     try {
       await persist();
-      await engine.call('start', {'settings': settings, 'rows': rows});
       setState(() {
         running = true;
         paused = false;
         attention = null;
       });
+      await engine.call('start', {'settings': settings, 'rows': rows});
     } catch (e) {
+      if (mounted) {
+        setState(() => running = false);
+      }
       showError(e);
     }
   }
@@ -515,6 +512,7 @@ class _WorkspaceState extends State<Workspace> {
                                             'attention': 'Atenção',
                                             'progress': 'Em andamento',
                                             'skipped': 'Ignorada',
+                                            'finished': 'Interrompida',
                                           }[states[row['cnpj']
                                               .toString()
                                               .replaceAll(
@@ -628,50 +626,12 @@ class _WorkspaceState extends State<Workspace> {
                 ),
                 const SizedBox(height: 12),
                 Wrap(spacing: 12, runSpacing: 12, children: [
-                  SizedBox(
-                      width: 260,
-                      child: DropdownButtonFormField<String>(
-                          key: ValueKey(browserMode),
-                          initialValue: browserMode,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                              labelText: 'Sessão do Chrome'),
-                          items: const [
-                            DropdownMenuItem(
-                                value: 'managed',
-                                child: Text('Chrome do app (persistente)',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis)),
-                            DropdownMenuItem(
-                                value: 'attach',
-                                child: Text('Chrome já aberto (depuração)',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis))
-                          ],
-                          onChanged: running
-                              ? null
-                              : (value) {
-                                  setState(() => browserMode = value!);
-                                  changed();
-                                })),
-                  if (browserMode == 'attach')
-                    SizedBox(
-                        width: 120,
-                        child: TextField(
-                            controller: debugPort,
-                            enabled: !running,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly
-                            ],
-                            decoration:
-                                const InputDecoration(labelText: 'Porta local'),
-                            onChanged: (_) => changed())),
                   OutlinedButton.icon(
                       onPressed: ready && !running
                           ? () => act('open_browser', {'settings': settings})
                           : null,
                       icon: const Icon(Icons.open_in_browser),
-                      label: const Text('Abrir / conectar Chrome')),
+                      label: const Text('Abrir Chrome')),
                 ]),
                 const SizedBox(height: 20),
                 Wrap(
@@ -811,11 +771,8 @@ class _WorkspaceState extends State<Workspace> {
                                         onPressed: ready && (!running || paused)
                                             ? () => act('close_browser')
                                             : null,
-                                        child: Text(
-                                          browserMode == 'attach'
-                                              ? 'Desconectar (feche o Chrome para trocar certificado)'
-                                              : 'Fechar Chrome para trocar certificado',
-                                        ),
+                                        child: const Text(
+                                            'Fechar Chrome para trocar certificado'),
                                       ),
                                       const Divider(height: 24),
                                       ExpansionTile(
@@ -876,7 +833,7 @@ class _WorkspaceState extends State<Workspace> {
     for (final row in controllers.values) {
       row.dispose();
     }
-    for (final c in [office, cnpj, initial, finalPeriod, output, debugPort]) {
+    for (final c in [office, cnpj, initial, finalPeriod, output]) {
       c.dispose();
     }
     super.dispose();

@@ -16,7 +16,7 @@ Comandos: bootstrap, save, import, export, template, start, pause, resume, skip,
 
 **Guia**: intenção `issuing` → `download_pending` → `saved`. Antes de clicar na emissão, intenção fica durável. Após falha ou reinício nesse intervalo, somente recuperação. Um salvo é revalidado antes de ser reutilizado. Chave: CNPJ + competência inicial + final. Arquivo com mesmo nome e outro conteúdo exige intervenção, sem substituição automática.
 
-**Chrome**: instalação Google Chrome obrigatória em caminho padrão. Abertura convencional com CDP, sem flags padrão do Playwright; conexão opcional a Chrome externo com depuração local. Veja [sessão Chrome](chrome.md). Perfil dedicado no diretório de dados do app, sem acesso ao perfil pessoal. Certificado/token e CAPTCHA são controlados pelo operador. Trocar certificado fecha o Chrome iniciado pelo app inteiro; no modo externo, desconecta e o operador fecha o Chrome manualmente. Sessão local não é enviada ao repositório.
+**Chrome**: instalação Google Chrome obrigatória em caminho padrão. Abertura convencional com CDP, sem flags padrão do Playwright; o navegador é sempre o Chrome do app. Fechamento da aba utilizada ou desconexão cancela imediatamente o lote, inclusive em pausa. Veja [sessão Chrome](chrome.md). Perfil dedicado no diretório de dados do app, sem acesso ao perfil pessoal. Certificado/token e CAPTCHA são controlados pelo operador. Trocar certificado fecha o Chrome iniciado pelo app inteiro e encerra o lote pausado. Sessão local não é enviada ao repositório.
 
 ## Distribuição
 

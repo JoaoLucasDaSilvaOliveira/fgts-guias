@@ -58,7 +58,7 @@ CSV usa UTF-8 e `;`. XLSX usa a primeira aba e primeira linha de cabeçalhos. O 
 ## Emitir e acompanhar
 
 1. Selecione competência Inicial/Final no calendário (o app usa o mês/ano da data escolhida) e escolha a pasta dos PDFs. Selecione as empresas.
-2. Escolha a sessão do Chrome e clique **Abrir / conectar Chrome**. Entre com GOV.BR, selecione certificado/PIN e resolva CAPTCHA pessoalmente. Aguarde o FGTS Digital abrir e use **Emitir selecionadas**. O modo padrão mantém cookies e histórico do perfil do app. Para reutilizar Chrome já aberto, veja [configuração da sessão](docs/chrome.md).
+2. Clique **Abrir Chrome**. Entre com GOV.BR, selecione certificado/PIN e resolva CAPTCHA pessoalmente. Aguarde o FGTS Digital abrir e use **Emitir selecionadas**. O modo padrão mantém cookies e histórico do perfil do app. Veja [funcionamento da sessão](docs/chrome.md).
 3. O app compara FGTS, consignados e total. Desmarca **Sem guia emitida** nas pesquisas para incluir débitos antes escondidos.
 4. Divergências pausam o lote inteiro. Revise relatórios e tabela, resolva o problema e retome. Caso o sistema de folha precise de correção, faça isso antes. **Ignorar empresa** é opção explícita.
 5. O vencimento sugerido é preservado; quando hoje é sugerido para atrasados, tenta amanhã e confere os totais. Valores adicionais provocam pausa.
@@ -66,7 +66,9 @@ CSV usa UTF-8 e `;`. XLSX usa a primeira aba e primeira linha de cabeçalhos. O 
 
 **Aguardando pagamento ou download incerto:** não tente emitir outra guia. No Chrome, localize a guia existente pela reimpressão ou Consulta de Guias, baixe-a e use **Recuperar PDF**, informando número e vencimento. Depois retome: o registro salvo será conferido e reutilizado. A navegação automática da consulta ainda não foi implementada porque não foi demonstrada no treinamento.
 
-**Trocar certificado:** pause e clique em **Fechar Chrome para trocar certificado**. O botão fecha todo o Chrome controlado pelo app; ao retomar, entre novamente com o titular configurado. No modo Chrome já aberto, o botão desconecta; feche todo esse Chrome manualmente para trocar o certificado. Apenas fechar uma aba não troca o certificado.
+**Fechar Chrome durante o lote:** encerra imediatamente o lote, inclusive quando pausado. O app não reabre a janela nem prossegue para outra empresa. Emissões solicitadas permanecem registradas para recuperação.
+
+**Trocar certificado:** pause e clique em **Fechar Chrome para trocar certificado**. O botão fecha todo o Chrome controlado pelo app; ao retomar, entre novamente com o titular configurado. Apenas fechar uma aba não troca o certificado.
 
 ## Dados e limites
 

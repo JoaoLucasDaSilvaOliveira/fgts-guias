@@ -26,3 +26,7 @@ Nesta correção, foram feitas somente análise estática Flutter e leitura de s
 ## Correção do overflow no seletor de Chrome
 
 A pedido do operador, o app foi aberto no Linux e o terminal mostrou `RenderFlex overflowed by 30 pixels on the right` no DropdownButtonFormField. O seletor agora expande seu conteúdo na largura disponível e limita o texto a uma linha com reticências. Após recompilar e reabrir o app, o overflow não apareceu no terminal. A inicialização ainda apresenta um aviso nativo ATK (`atk_socket_embed`), sem exceção de layout Dart observada. Não foi feita emissão de guia.
+
+## Última rodada de UI
+
+Retirada a escolha de sessão/porta e a conexão ao Chrome externo. Conferir **Abrir Chrome** e fechamento da janela/aba usada: lote ativo ou pausado deve encerrar imediatamente, sem avançar para outra empresa nem abrir nova janela. Conferir o diário após fechamento no intervalo entre solicitação da emissão e download, sem reemitir. Identificação do titular está adiada em [pendências](pendencias.md).

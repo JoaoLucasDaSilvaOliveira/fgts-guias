@@ -14,7 +14,13 @@ class Engine:
         self.task = None
         self.skip = False
         self.current = None
-        self.portal = Portal(self.store, self.event, self.checkpoint)
+        self.browser_finished = False
+        self.portal = Portal(self.store, self.event, self.checkpoint, self.browser_closed)
+    def browser_closed(self):
+        if self.task and not self.task.done() and not self.browser_finished:
+            self.browser_finished = True
+            self.task.cancel()
+            self.event('finished', company=digits(self.current['cnpj']) if self.current else None, message='Chrome foi fechado. Lote encerrado imediatamente; emissões solicitadas ficam registradas para recuperação.')
     def event(self, kind, **values):
         print(json.dumps({'event':kind, **values}, ensure_ascii=False), flush=True)
     async def checkpoint(self):
@@ -46,7 +52,8 @@ class Engine:
                             break
             self.event('finished', message='Lote encerrado. Confira as empresas salvas e ignoradas.')
         except asyncio.CancelledError:
-            self.event('finished', message='Lote interrompido. Emissões solicitadas permanecem registradas.')
+            if not self.browser_finished:
+                self.event('finished', message='Lote interrompido. Emissões solicitadas permanecem registradas.')
         finally:
             self.current = None
     async def command(self, name, data):
@@ -79,6 +86,7 @@ class Engine:
             normalized = [normalize_row(r) for r in rows]
             if len({r['cnpj'] for r in normalized}) != len(rows):
                 raise ValueError('Há CNPJs repetidos no lote')
+            self.browser_finished = False
             self.gate.set()
             self.task = asyncio.create_task(self.batch(rows, dict(settings)))
         elif name == 'pause':
@@ -101,6 +109,7 @@ class Engine:
         elif name == 'close_browser':
             if self.task and not self.task.done() and self.gate.is_set():
                 raise ValueError('Pause antes de trocar o certificado')
+            self.browser_closed()
             await self.portal.close()
         else:
             raise ValueError('Comando desconhecido')

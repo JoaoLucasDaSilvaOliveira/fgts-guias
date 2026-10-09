@@ -27,10 +27,12 @@ def chrome_path():
     return next((str(p) for p in candidates if p and Path(p).is_file()), None)
 
 class Portal:
-    def __init__(self, storage, notify, checkpoint):
+    def __init__(self, storage, notify, checkpoint, on_closed):
         self.store, self.notify, self.checkpoint = storage, notify, checkpoint
         self.context = self.page = None
         self.chrome = ChromeSession(storage.root)
+        self.on_closed = on_closed
+        self.observed_browser = None
 
     async def launch(self, settings=None):
         settings = settings or self.store.get('workspace', {}).get('settings', {})
@@ -38,6 +40,10 @@ class Portal:
         if not executable:
             raise Attention('Instale o Google Chrome antes de iniciar.')
         self.context = await self.chrome.open(executable, settings)
+        if self.observed_browser != self.chrome.browser:
+            self.observed_browser = self.chrome.browser
+            browser = self.chrome.browser
+            browser.on('disconnected', lambda *_: self.window_closed(browser))
         if self.page and not self.page.is_closed() and self.page.context == self.context:
             return
         candidates = [page for page in self.context.pages
@@ -45,9 +51,17 @@ class Portal:
         if len(candidates) > 1:
             raise Attention('Há mais de uma aba FGTS/GOV.BR. Deixe aberta somente a aba que deseja usar.')
         self.page = candidates[0] if candidates else await self.context.new_page()
+        page = self.page
+        page.on('close', lambda *_: self.window_closed(page))
         if not candidates:
             await self.page.goto(BASE)
         await self.page.bring_to_front()
+
+    def window_closed(self, source):
+        if source not in (self.page, self.chrome.browser):
+            return
+        if not self.chrome.closing:
+            self.on_closed()
 
     async def close(self):
         await self.chrome.close()
