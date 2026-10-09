@@ -151,7 +151,7 @@ class Portal:
         if not holder:
             raise Attention('Não foi possível confirmar o titular do certificado no portal. Confira no Chrome se o login foi concluído com o certificado correspondente ao CNPJ informado no app.')
         if digits(holder.group()) != office:
-            raise Attention('O certificado usado no login pertence a outro CNPJ. Confira o titular informado no app ou feche o Chrome pelo app para entrar com outro certificado.')
+            raise Attention('O certificado usado no login pertence a outro CNPJ. Confira o titular informado no app ou feche todas as janelas do Chrome do app para entrar com outro certificado.')
         if company['cnpj'] in digits(body.split('Empregador:', 1)[-1].split('\n', 1)[0]) and '/servicos' in self.page.url:
             return
         if '/escolhaPerfil' in self.page.url:

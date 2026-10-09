@@ -153,7 +153,8 @@ class _WorkspaceState extends State<Workspace> {
   }
 
   Future<void> persist() async {
-    await engine.call('save', {'settings': settings, 'rows': rows});
+    await engine.call('save',
+        {'settings': settings, 'rows': rows.map(companyPayload).toList()});
   }
 
   void changed() {
@@ -255,7 +256,8 @@ class _WorkspaceState extends State<Workspace> {
       allowedExtensions: ['xlsx', 'csv'],
     );
     if (path != null) {
-      await act(template ? 'template' : 'export', {'path': path, 'rows': rows});
+      await act(template ? 'template' : 'export',
+          {'path': path, 'rows': rows.map(companyPayload).toList()});
     }
   }
 
@@ -270,7 +272,8 @@ class _WorkspaceState extends State<Workspace> {
         paused = false;
         attention = null;
       });
-      await engine.call('start', {'settings': settings, 'rows': rows});
+      await engine.call('start',
+          {'settings': settings, 'rows': rows.map(companyPayload).toList()});
     } catch (e) {
       if (mounted) {
         setState(() => running = false);
@@ -336,7 +339,7 @@ class _WorkspaceState extends State<Workspace> {
     );
     if (picked != null) {
       await act('recover', {
-        'row': matches.first,
+        'row': companyPayload(matches.first),
         'settings': settings,
         'path': picked.files.single.path,
         'guide': number.text,
@@ -350,6 +353,7 @@ class _WorkspaceState extends State<Workspace> {
   void maskRows() {
     for (final row in rows) {
       row['cnpj'] = maskCnpj(row['cnpj']?.toString() ?? '');
+      row['total'] = rowTotal(row);
     }
     final removed =
         controllers.keys.where((row) => !rows.contains(row)).toList();
@@ -588,11 +592,31 @@ class _WorkspaceState extends State<Workspace> {
                                                         'total',
                                                         'observacoes'
                                                       ].contains(key)),
-                                              decoration: const InputDecoration(
+                                              readOnly: key == 'total',
+                                              decoration: InputDecoration(
                                                 border: InputBorder.none,
+                                                hintText: [
+                                                  'fgts',
+                                                  'consignado',
+                                                  'total'
+                                                ].contains(key)
+                                                    ? '0,00'
+                                                    : null,
+                                                filled: key == 'total',
+                                                fillColor:
+                                                    const Color(0xffdce3dc),
                                               ),
                                               onChanged: (value) {
                                                 row[key] = value;
+                                                if (key == 'fgts' ||
+                                                    key == 'consignado') {
+                                                  row['total'] = rowTotal(row);
+                                                  controllers[row]
+                                                          ?.fields['total']
+                                                          ?.text =
+                                                      companyFieldText(
+                                                          row, 'total');
+                                                }
                                                 changed();
                                               },
                                             ),
@@ -763,9 +787,9 @@ class _WorkspaceState extends State<Workspace> {
                                   'cod': '',
                                   'empresa': '',
                                   'cnpj': '',
-                                  'fgts': '0,00',
-                                  'consignado': '0,00',
-                                  'total': '0,00',
+                                  'fgts': '',
+                                  'consignado': '',
+                                  'total': '',
                                   'observacoes': '',
                                   'selected': true,
                                 }),
@@ -923,23 +947,6 @@ class _WorkspaceState extends State<Workspace> {
                                         ),
                                       ],
                                       const Divider(height: 32),
-                                      const Text(
-                                        'Acesso ao FGTS Digital',
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.w600),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      const Text(
-                                        'Faça o login no Chrome com seu certificado e responda ao CAPTCHA, se solicitado. O lote continua automaticamente após o login. Durante a emissão, o Chrome aparece quando precisar de sua atenção.',
-                                      ),
-                                      TextButton(
-                                        onPressed: ready && (!running || paused)
-                                            ? () => act('close_browser')
-                                            : null,
-                                        child: const Text(
-                                            'Fechar Chrome para trocar certificado'),
-                                      ),
-                                      const Divider(height: 24),
                                       ExpansionTile(
                                         tilePadding: EdgeInsets.zero,
                                         title: const Text('Atividades do lote'),

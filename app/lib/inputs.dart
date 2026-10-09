@@ -62,6 +62,44 @@ class MoneyFormatter extends TextInputFormatter {
   }
 }
 
+int moneyCents(String value) {
+  var text = value.replaceAll('R\$', '').replaceAll(' ', '').trim();
+  if (text.contains(',') || RegExp(r'^\d{1,3}(?:\.\d{3})+$').hasMatch(text)) {
+    text = text.replaceAll('.', '');
+  } else {
+    text = text.replaceAll('.', ',');
+  }
+  if (!RegExp(r'^\d*(?:,\d{0,2})?$').hasMatch(text)) {
+    throw const FormatException('Valor monetário inválido');
+  }
+  final parts = text.split(',');
+  return (int.tryParse(parts.first) ?? 0) * 100 +
+      (parts.length > 1 ? int.parse(parts[1].padRight(2, '0')) : 0);
+}
+
+String moneyText(int cents) =>
+    '${cents ~/ 100},${(cents % 100).toString().padLeft(2, '0')}';
+
+String rowTotal(Map<String, dynamic> row) =>
+    moneyText(moneyCents(row['fgts']?.toString() ?? '') +
+        moneyCents(row['consignado']?.toString() ?? ''));
+
+Map<String, dynamic> companyPayload(Map<String, dynamic> row) => {
+      ...row,
+      'fgts': moneyText(moneyCents(row['fgts']?.toString() ?? '')),
+      'consignado': moneyText(moneyCents(row['consignado']?.toString() ?? '')),
+      'total': rowTotal(row),
+    };
+
+String companyFieldText(Map<String, dynamic> row, String key) {
+  final value = row[key]?.toString() ?? '';
+  if (key == 'cnpj') return maskCnpj(value);
+  if (['fgts', 'consignado', 'total'].contains(key) && moneyCents(value) == 0) {
+    return '';
+  }
+  return value;
+}
+
 class CompanyControllers {
   final Map<String, TextEditingController> fields;
   CompanyControllers(Map<String, dynamic> row)
@@ -75,10 +113,7 @@ class CompanyControllers {
             'total',
             'observacoes'
           ])
-            key: TextEditingController(
-                text: key == 'cnpj'
-                    ? maskCnpj(row[key]?.toString() ?? '')
-                    : row[key]?.toString() ?? '')
+            key: TextEditingController(text: companyFieldText(row, key))
         };
   void dispose() {
     for (final controller in fields.values) {

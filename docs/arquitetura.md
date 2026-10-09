@@ -10,7 +10,7 @@
 
 Comandos: bootstrap, save, import, export, template, start, pause, resume, skip, stop, recover, open_browser, close_browser, accept_difference, reject_difference. Respostas contêm id, ok e data/error. Eventos: progress, attention, saved, skipped, finished, diagnostic, browser_visibility. Não encaminhar stdout Python para texto livre.
 
-**Empresa** contém COD, EMPRESA, CNPJ, FGTS MENSAL, CONSIGNADO, TOTAL, OBSERVAÇÕES. COD é identificação humana; CNPJ decide perfil e é chave financeira. O TOTAL informado deve igualar FGTS + consignado; não é corrigido automaticamente. O titular configura nome/CNPJ na própria interface, sem .env.
+**Empresa** contém COD, EMPRESA, CNPJ, FGTS MENSAL, CONSIGNADO, TOTAL, OBSERVAÇÕES. COD é identificação humana; CNPJ decide perfil e é chave financeira. Na interface, TOTAL é calculado em centavos como FGTS + consignado e não é editável, inclusive após importação. Campos monetários vazios são enviados como 0,00; o motor continua verificando a igualdade. O titular configura nome/CNPJ na própria interface, sem .env.
 
 **Lote** é sequencial. Configuração de escritório/período/destino fica fixa enquanto roda. Tabela pode ser corrigida durante pausa, e a empresa é normalizada novamente antes de retomar. Uma divergência pausa todo o lote; ignorar é ação explícita do operador.
 

@@ -41,7 +41,7 @@ O script escolhe Windows automaticamente. Não é necessário instalar Chromium 
 
 1. Informe nome e CNPJ do titular do certificado na interface. O app escolhe **Meu Perfil** se esse CNPJ for o da empresa; nas demais usa **Procurador**.
 2. Clique em **Baixar modelo** para salvar um XLSX ou CSV vazio. Também há [template CSV](templates/empresas.csv) no repositório.
-3. Preencha e importe, ou use **Adicionar empresa** e edite na tabela. CNPJs recebem máscara automaticamente. Os campos monetários ignoram letras; aceitam reais com duas casas decimais.
+3. Preencha e importe, ou use **Adicionar empresa** e edite na tabela. CNPJs recebem máscara automaticamente. FGTS mensal e consignado aceitam valores em reais com duas casas decimais. Campos vazios valem zero. O total é calculado automaticamente e não pode ser editado.
 
 | Coluna | Conteúdo |
 |---|---|
@@ -50,7 +50,7 @@ O script escolhe Windows automaticamente. Não é necessário instalar Chromium 
 | CNPJ | CNPJ numérico ou formatado, obrigatório; mantenha como texto no Excel |
 | FGTS MENSAL | Valor em reais, por exemplo `100,00` |
 | CONSIGNADO | Total de Parcela paga, ou `0,00` |
-| TOTAL | FGTS MENSAL + CONSIGNADO, conferido pelo app |
+| TOTAL | Calculado pelo app como FGTS MENSAL + CONSIGNADO |
 | OBSERVAÇÕES | Notas do operador |
 
 **Remover todas** limpa a tabela após sua confirmação, com o lote parado. As guias salvas, o registro das emissões e as configurações são preservados.
@@ -78,7 +78,7 @@ Por padrão, o app confere e reaproveita os PDFs já salvos para a mesma empresa
 
 **Fechar Chrome durante o lote:** encerra imediatamente o lote, inclusive quando pausado. O app não reabre a janela nem prossegue para outra empresa. Emissões solicitadas permanecem registradas para recuperação.
 
-**Trocar certificado:** pause e clique em **Fechar Chrome para trocar certificado**. O botão fecha todo o Chrome controlado pelo app; ao retomar, entre novamente com o titular configurado. Apenas fechar uma aba não troca o certificado.
+**Trocar certificado:** encerre o lote e feche todas as janelas do Chrome aberto pelo app. Depois, use **Abrir Chrome** e entre novamente com o titular configurado. Apenas fechar uma aba não troca o certificado.
 
 ## Dados e limites
 
