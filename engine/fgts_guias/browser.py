@@ -3,11 +3,12 @@ import os
 import re
 import shutil
 import uuid
+from playwright.async_api import expect
 from pathlib import Path
 from datetime import date, timedelta
 from .chrome import ChromeSession
 from .domain import digits, money, reais, safe_filename
-from .files import validate_pdf, guide_due
+from .files import validate_pdf, guide_due, guide_number
 
 BASE = 'https://fgtsdigital.sistema.gov.br/'
 HOME = BASE + 'portal/servicos'
@@ -94,9 +95,11 @@ class Portal:
     async def click(self, name):
         await self.guard()
         await self.page.get_by_role('button', name=name, exact=True).click()
-        loading = self.page.get_by_text('Carregando', exact=False)
-        if await loading.count() and await loading.first.is_visible():
-            await loading.first.wait_for(state='hidden', timeout=60000)
+        await self.page.get_by_role('progressbar', name='Carregando', exact=True).wait_for(state='hidden', timeout=60000)
+
+    async def step(self, number):
+        await self.page.locator(f'[role="tab"][step="{number}"][active]').wait_for(state='visible', timeout=60000)
+        await self.page.get_by_role('progressbar', name='Carregando', exact=True).wait_for(state='hidden', timeout=60000)
 
     async def employer(self, company):
         match = re.search(r'Empregador:\s*([\d./-]+)', await self.text())
@@ -136,7 +139,12 @@ class Portal:
             await dialog.get_by_role('textbox', name='Empregador a ser representado', exact=True).fill(company['cnpj'])
         buttons = dialog.get_by_role('button', name=re.compile('^(Definir|Selecionar)$'))
         await buttons.last.click()
+        await dialog.wait_for(state='hidden')
         await self.page.wait_for_url('**/portal/servicos', timeout=30000)
+        await self.page.get_by_role('progressbar', name='Carregando', exact=True).wait_for(state='hidden', timeout=60000)
+        cnpj = company['cnpj']
+        formatted = f'{cnpj[:2]}.{cnpj[2:5]}.{cnpj[5:8]}/{cnpj[8:12]}-{cnpj[12:]}'
+        await self.page.get_by_text(re.compile(r'Empregador:\s*' + re.escape(formatted))).first.wait_for(state='visible', timeout=30000)
         body = await self.text()
         match = re.search(r'Empregador:\s*([\d./-]+)', body)
         if not match or digits(match.group(1)) != company['cnpj']:
@@ -154,21 +162,42 @@ class Portal:
 
     async def summary(self):
         result = {}
-        for key, label in [('fgts', 'Total FGTS'), ('consignado', 'Total dos Consignados'), ('total', 'Total da Guia')]:
+        for key, label in [('fgts', 'Total FGTS'), ('consignado', re.compile(r'^Total (?:dos )?Consignados?$')), ('total', 'Total da Guia')]:
             nodes = self.page.get_by_text(label, exact=True)
+            await nodes.first.wait_for(state='visible')
             found = []
             for index in range(await nodes.count()):
                 node = nodes.nth(index)
                 if not await node.is_visible():
                     continue
-                # Keep the extraction inside the label's rendered summary block.
-                content = await node.evaluate('(e) => e.parentElement.innerText')
+                value = node.locator('xpath=following-sibling::*[not(self::br)][1]')
+                await expect(value).to_have_text(re.compile(r'^\s*(?:R\$\s*)?\d[\d.]*,\d{2}\s*$'), timeout=15000)
+                content = await value.inner_text()
                 values = re.findall(r'(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})', content)
                 if len(values) == 1:
                     found.append(money(values[0]))
             if not found or len(set(found)) != 1:
                 raise Attention(f'Não foi possível ler um valor único de {label}. Confira no Chrome.')
             result[key] = found[0]
+        return result
+
+    async def final_summary(self):
+        result = {'fgts': 0, 'consignado': 0, 'total': 0}
+        seen = set()
+        tables = self.page.get_by_role('table')
+        await tables.first.wait_for(state='visible')
+        for table in await tables.all():
+            headers = [' '.join(t.split()) for t in await table.get_by_role('columnheader').all_inner_texts()]
+            columns = [i for i, name in enumerate(headers) if re.fullmatch(r'Total(?:\s*[^\w]*)?', name)]
+            kind = 'fgts' if any('FGTS Mensal' in h for h in headers) else 'consignado' if any('Consignado' in h for h in headers) else None
+            values = [t.strip() for t in await table.get_by_role('row').last.get_by_role('cell').all_inner_texts()]
+            if kind is None or kind in seen or len(columns) != 1 or len(values) != len(headers) or 'Total' not in values:
+                raise Attention('Resumo final da guia não reconhecido. Confira os totais no Chrome.')
+            result[kind] = money(values[columns[0]])
+            seen.add(kind)
+        if 'fgts' not in seen:
+            raise Attention('Total FGTS ausente na conferência final.')
+        result['total'] = result['fgts'] + result['consignado']
         return result
 
     def compare(self, company, actual, loans=True):
@@ -273,10 +302,15 @@ class Portal:
                 await self.check(selector, checked)
             if await self.search(company, settings):
                 return
-            await self.page.locator('#selecionar-todos').set_checked(True)
-            await self.click('Adicionar à guia')
-            self.compare(company, await self.summary(), loans=False)
+            if not await self.page.get_by_text('Resumo dos débitos adicionados à guia', exact=True).count():
+                await self.check('#selecionar-todos', True)
+                await self.click('Adicionar à guia')
+                self.compare(company, await self.summary(), loans=False)
+            else:
+                actual = await self.summary()
+                self.compare(company, actual, loans=actual['consignado'] != 0)
         await self.click('Avançar')
+        await self.step(2)
         self.notify('progress', company=company['cnpj'], message='2 de 4 · Conferindo consignados')
         actual = await self.summary()
         if actual != {k: company[k] for k in ['fgts','consignado','total']}:
@@ -286,6 +320,7 @@ class Portal:
             actual = await self.summary()
         self.compare(company, actual)
         await self.click('Avançar')
+        await self.step(3)
         self.notify('progress', company=company['cnpj'], message='3 de 4 · Conferindo vencimento')
         field = self.page.get_by_role('textbox', name=re.compile('Vencimento da Guia'))
         due = await field.input_value()
@@ -298,20 +333,22 @@ class Portal:
             raise Attention('O portal não confirmou o vencimento solicitado. Confira a data no Chrome.')
         self.compare(company, await self.summary())
         await self.click('Avançar')
+        await self.step(4)
         self.notify('progress', company=company['cnpj'], message='4 de 4 · Conferindo e emitindo')
-        self.compare(company, await self.summary())
+        self.compare(company, await self.final_summary())
         await self.guard()
         await self.employer(company)
         self.store.save_job(key, {'state':'issuing', 'due':due, 'company':company, 'initial':initial, 'final':final})
         try:
-            download, _ = await self.chrome.download(self.page, lambda: self.click('Emitir Guia'))
+            download, downloaded_path = await self.chrome.download(self.page, lambda: self.click('Emitir Guia'))
+        except Exception:
+            self.notify('progress', company=company['cnpj'], message='Download não confirmado. Recuperando a guia emitida…')
+            await self.recover_from_portal(company, settings)
+            return
+        try:
+            number = guide_number(downloaded_path)
         except Exception as exc:
-            raise Attention('A emissão foi solicitada, mas o download não foi confirmado. Recupere a guia existente.', recovery=True) from exc
-        body = await self.text()
-        numbers = set(re.findall(r'\b\d{10,30}-\d\b', body))
-        if len(numbers) != 1:
-            raise Attention('Guia emitida; número não identificado. Recupere e confira o PDF.', recovery=True)
-        number = numbers.pop()
+            raise Attention('Guia emitida; número não identificado no PDF. Recupere a guia existente.', recovery=True) from exc
         await self.save_download(download, company, settings, due, number)
 
     async def reprint(self, company, settings):

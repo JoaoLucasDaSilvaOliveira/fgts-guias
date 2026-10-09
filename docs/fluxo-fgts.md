@@ -48,3 +48,11 @@ A planilha original usava B (nome), L (FGTS), N (consignado) e P (total). O app 
 O titular aparece no nome acessível do botão de usuário. Em escolhaPerfil, aguardar o diálogo **Definir Perfil**; em serviços, abrir **Trocar Perfil**. Escopar controles pelo diálogo correspondente e selecionar opções pelo papel `option`, pois textos iguais aparecem em outros componentes. Checkboxes customizados têm rótulos sobre o input: clicar no rótulo associado e confirmar o estado.
 
 O indicador azul contém o atributo `tooltip` com o texto de guias aguardando pagamento. Seu clique abre **Guias Aguardando Pagamento**, com números clicáveis e tooltip **Reimprimir guia**. A reimpressão foi integrada ao motor e validada pelo app: clicar no indicador, exigir um único número, capturar o download completo, validar o PDF e salvar. Havendo número registrado, exigir que coincida. O PDF reimpresso pode mostrar apenas a raiz de oito dígitos do CNPJ no campo de identificação do empregador.
+
+## Emissão nova e atualização das etapas
+
+As checkboxes da tabela usam rótulos sobre o input, inclusive **Selecionar todos**. Os resumos nas etapas 1 e 2 usam **Total Consignados**, e a etapa 3 usa **Total Consignado**. O valor monetário está no próximo elemento irmão após eventuais quebras de linha; esperar que esse elemento contenha dinheiro antes de ler. A última etapa usa tabelas com papéis acessíveis columnheader/row/cell e uma linha Total para FGTS e, quando presente, consignado. Somar somente os totais identificados, comparar com a entrada e pausar em estrutura desconhecida.
+
+Esperar a etapa ativa do breadcrumb e o indicador de carregamento. A troca de perfil mantém a URL de serviços: esperar fechar o diálogo e aparecer o CNPJ esperado, pois esperar somente a URL pode ler o empregador anterior. Resumo persistido também pode existir sem o aviso textual; conferir antes de tentar selecionar/adicionar novamente.
+
+O PDF emitido fornece o número no campo **Identificador**; não depender da exposição desse número na tela. Se não houver download confirmado após emissão, executar a recuperação da guia existente, sem novo clique em Emitir Guia. O PDF sem consignado declara explicitamente **Não há informações de recolhimentos do Consignado**: aceitar ausência do total de consignado somente com essa mensagem e valor esperado zero.

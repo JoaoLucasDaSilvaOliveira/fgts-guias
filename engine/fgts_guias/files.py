@@ -77,6 +77,13 @@ def write_table(path, rows):
             # Prevent formulas when CSV is opened in spreadsheet applications.
             writer.writerows([["'"+str(v) if str(v).startswith(('=','+','-','@')) else v for v in row] for row in values])
 
+def guide_number(path):
+    text = '\n'.join(page.extract_text() or '' for page in PdfReader(path).pages)
+    found = re.search(r'Identificador\s*(\d{10,30}-\d)', text)
+    if not found:
+        raise ValueError('Número da guia não identificado no PDF')
+    return found.group(1)
+
 def guide_due(path):
     text = '\n'.join(page.extract_text() or '' for page in PdfReader(path).pages)
     found = re.search(r'Pagar este documento até\s*(\d{2}/\d{2}/\d{4})', text)
@@ -107,6 +114,8 @@ def validate_pdf(path, company, initial, final, due, guide):
         raise ValueError('Vencimento ou total não confirmado no PDF')
     for label, key in [('Total FGTS', 'fgts'), ('Total Consignado', 'consignado')]:
         found = re.search(re.escape(label) + r':\s*([\d.]+,\d{2})', text)
+        if key == 'consignado' and not found and company[key] == 0 and 'Não há informações de recolhimentos do Consignado' in text:
+            continue
         if not found or money(found.group(1)) != company[key]:
             raise ValueError(f'{label} do PDF não corresponde à empresa')
     # Range guides may abbreviate competence; require both ends explicitly.
