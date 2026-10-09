@@ -57,3 +57,10 @@ O teste demandou correções e reinícios durante a primeira parte; depois das c
 ## Segunda rodada de lote e Consulta de Guias
 
 Cinco empresas adicionais foram carregadas por leitura da planilha filtrada, sem editar conteúdo nem filtro. Quatro guias novas foram emitidas, recuperadas automaticamente pela Consulta de Guias após o limite de 5 segundos e salvas/validadas no destino. Foram exercitados consignados positivos e zero. A quinta empresa apresentou **Não há débitos de interesse**; por orientação explícita do operador, registrou-se a ocorrência no diário e prosseguiu-se para a próxima empresa, sem ajustar valores importados. O lote terminou com quatro salvas e uma ignorada. Ao reiniciar para carregar a correção, as guias já salvas foram reutilizadas sem nova emissão. Terminal sem exceções Dart ou overflow; permanece a mensagem nativa ATK conhecida na inicialização.
+
+
+## Lote final da planilha filtrada
+
+Processadas 17 empresas no intervalo autorizado, excluindo explicitamente uma empresa solicitada pelo operador e preservando o conteúdo/filtro da planilha. Resultado: 16 guias salvas e validadas e uma ocorrência explícita de ausência de débitos registrada no diário, com avanço automático. A última empresa do intervalo foi concluída. Todos os PDFs finais passaram novamente pela conferência de empregador, competência, vencimento, número, FGTS, consignado e total.
+
+O lote revelou três problemas corrigidos: o vencimento precisava ser aguardado até conter uma data completa; a barra de rolagem da tabela precisava compartilhar um controlador explícito com sua área rolável; o Chrome com janela coberta suspendia quadros de renderização e impedia a verificação de estabilidade dos cliques. A sessão CDP da página agora mantém foco emulado conectado. As retomadas reutilizaram PDFs salvos e recuperaram emissão pendente sem repetir Emitir Guia. Após as correções, o restante do lote foi concluído sem exceções Flutter no terminal; permanece a mensagem nativa ATK de inicialização.

@@ -36,6 +36,7 @@ class Portal:
         self.chrome = ChromeSession(storage.root)
         self.on_closed = on_closed
         self.observed_browser = None
+        self.page_session = None
 
     async def launch(self, settings=None):
         settings = settings or self.store.get('workspace', {}).get('settings', {})
@@ -55,6 +56,8 @@ class Portal:
             raise Attention('Há mais de uma aba FGTS/GOV.BR. Deixe aberta somente a aba que deseja usar.')
         self.page = candidates[0] if candidates else await self.context.new_page()
         page = self.page
+        self.page_session = await self.context.new_cdp_session(page)
+        await self.page_session.send('Emulation.setFocusEmulationEnabled', {'enabled':True})
         page.on('close', lambda *_: self.window_closed(page))
         if not candidates:
             await self.page.goto(BASE)
@@ -68,7 +71,7 @@ class Portal:
 
     async def close(self):
         await self.chrome.close()
-        self.context = self.page = None
+        self.context = self.page = self.page_session = None
 
     async def text(self):
         return await self.page.locator('body').inner_text()
@@ -404,6 +407,7 @@ class Portal:
         await self.step(3)
         self.notify('progress', company=company['cnpj'], message='3 de 4 · Conferindo vencimento')
         field = self.page.get_by_role('textbox', name=re.compile('Vencimento da Guia'))
+        await expect(field).to_have_value(re.compile(r'^\d{2}/\d{2}/\d{4}$'), timeout=15000)
         due = await field.input_value()
         today = date.today().strftime('%d/%m/%Y')
         if due == today:

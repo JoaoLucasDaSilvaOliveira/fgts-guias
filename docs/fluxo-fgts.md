@@ -31,7 +31,7 @@ Comparar **Total FGTS**, **Total dos Consignados**, **Total da Guia** com FGTS M
 
 ## Etapa 3 — vencimento
 
-Manter vencimento válido sugerido pelo portal. O operador descreveu vencimento mensal normalmente próximo ao dia 20, antecipado em dias não úteis. Não calcular feriados por suposição. Para vencidos, quando o padrão é hoje, propor amanhã e conferir novamente os totais recalculados; encargos diferentes do TOTAL interrompem o lote.
+Aguardar o campo de vencimento conter DD/MM/AAAA antes de lê-lo ou avançar; o campo pode surgir vazio durante o carregamento. Manter vencimento válido sugerido pelo portal. O operador descreveu vencimento mensal normalmente próximo ao dia 20, antecipado em dias não úteis. Não calcular feriados por suposição. Para vencidos, quando o padrão é hoje, propor amanhã e conferir novamente os totais recalculados; encargos diferentes do TOTAL interrompem o lote.
 
 ## Etapa 4 — emissão e arquivo
 

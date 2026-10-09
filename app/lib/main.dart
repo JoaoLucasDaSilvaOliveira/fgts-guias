@@ -47,6 +47,7 @@ class Workspace extends StatefulWidget {
 
 class _WorkspaceState extends State<Workspace> {
   final engine = EngineClient();
+  final tableScroll = ScrollController();
   final office = TextEditingController(),
       cnpj = TextEditingController(),
       initial = TextEditingController(),
@@ -403,7 +404,9 @@ class _WorkspaceState extends State<Workspace> {
                     ),
                   )
                 : Scrollbar(
+                    controller: tableScroll,
                     child: SingleChildScrollView(
+                      controller: tableScroll,
                       child: SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: DataTable(
@@ -827,6 +830,7 @@ class _WorkspaceState extends State<Workspace> {
       );
   @override
   void dispose() {
+    tableScroll.dispose();
     saver?.cancel();
     subscription?.cancel();
     engine.close();
