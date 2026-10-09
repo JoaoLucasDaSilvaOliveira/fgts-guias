@@ -47,6 +47,7 @@ with tempfile.TemporaryDirectory() as sandbox:
     reply=next(item for item in replies if item.get('id')==1)
     if not reply.get('ok') or reply['data']['workspace']:
         raise SystemExit('Motor empacotado não iniciou com workspace vazio')
+    subprocess.run([str(executable), '--check-chrome'], env=env, timeout=60, check=True)
 
 version=next(line.split(':',1)[1].strip().split('+')[0] for line in (root/'app/pubspec.yaml').read_text().splitlines() if line.startswith('version:'))
 name=f'fgts-guias-v{version}-{platform}-x64'

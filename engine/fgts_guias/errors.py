@@ -19,6 +19,6 @@ def user_message(error):
     traceback = error.__traceback__
     while traceback and traceback.tb_next:
         traceback = traceback.tb_next
-    if isinstance(error, ValueError) and traceback and '/fgts_guias/' in traceback.tb_frame.f_code.co_filename.replace('\\', '/'):
+    if isinstance(error, ValueError) and traceback and 'fgts_guias' in traceback.tb_frame.f_code.co_filename.replace('\\', '/').split('/'):
         return str(error)
     return 'Não foi possível concluir esta etapa. Abra o Chrome, confira a página e clique em Retomar. Se a emissão já foi solicitada, o app buscará a guia existente.'

@@ -21,3 +21,11 @@ O modo de segundo plano é Chrome convencional **minimizado**, não headless rea
 A detecção automática de conclusão é restrita à autenticação/CAPTCHA: a URL precisa ser do FGTS Digital, fora do login, sem desafio pendente e com o CNPJ do titular esperado no cabeçalho. Essa observação não escolhe certificado nem resolve o desafio. Não retomar automaticamente divergências financeiras. A monitoração é cancelada ao pausar manualmente, retomar, ignorar, encerrar ou fechar o navegador. Se falhar, a pendência permanece e Retomar segue disponível.
 
 Referências: [Chrome Headless](https://developer.chrome.com/docs/automation-and-testing/headless), [Browser.setWindowBounds](https://chromedevtools.github.io/devtools-protocol/tot/Browser/#method-setWindowBounds).
+
+## Chrome no pacote distribuído
+
+O motor PyInstaller modifica a busca de bibliotecas. Ao iniciar o Chrome instalado, `external.py` restaura o `LD_LIBRARY_PATH_ORIG` (ou remove o caminho privado se não existia antes) apenas no subprocesso. No Windows, restaura temporariamente a busca padrão de DLLs e recompõe a busca do motor imediatamente após iniciar o processo. O Playwright continua com suas bibliotecas empacotadas. Sem isso, o launcher Bash do Chrome no CachyOS falhava com conflito de readline.
+
+O empacotamento verifica o motor congelado, um comando externo e a inicialização do driver Playwright. No Linux, executa o launcher real do Chrome com `--version`; no Windows, verifica que o Chrome foi localizado e inicia `cmd /c ver`, pois o launcher gráfico não fornece `--version`. Esse teste não autentica nem emite guias.
+
+Referência: [PyInstaller: programas externos](https://pyinstaller.org/en/stable/common-issues-and-pitfalls.html#launching-external-programs-from-the-frozen-application).

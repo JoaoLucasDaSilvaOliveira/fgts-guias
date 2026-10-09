@@ -7,6 +7,7 @@ import subprocess
 import time
 from urllib.request import build_opener, ProxyHandler
 from playwright.async_api import async_playwright
+from .external import launch_external
 
 class ChromeSession:
     def __init__(self, root):
@@ -31,7 +32,7 @@ class ChromeSession:
             with socket.socket() as port_socket:
                 port_socket.bind(('127.0.0.1', 0))
                 self.port = port_socket.getsockname()[1]
-            self.process = subprocess.Popen([
+            self.process = launch_external([
                 executable, '--user-data-dir=' + str(profile),
                 '--remote-debugging-address=127.0.0.1', '--remote-debugging-port=' + str(self.port),
                 '--no-first-run', 'https://fgtsdigital.sistema.gov.br/'],
