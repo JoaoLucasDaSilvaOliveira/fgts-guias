@@ -90,7 +90,9 @@ def validate_pdf(path, company, initial, final, due, guide):
     reader = PdfReader(path)
     text = '\n'.join(page.extract_text() or '' for page in reader.pages)
     compact = digits(text)
-    if company['cnpj'] not in compact:
+    employer = re.search(r'CPF/CNPJ do Empregador\s*([\d./-]+)', text)
+    employer_cnpj = digits(employer.group(1)) if employer else ''
+    if employer_cnpj not in (company['cnpj'], company['cnpj'][:8]):
         raise ValueError('CNPJ do PDF não corresponde à empresa')
     if digits(guide) not in compact:
         raise ValueError('Número da guia não foi confirmado no PDF')

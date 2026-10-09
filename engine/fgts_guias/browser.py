@@ -111,21 +111,30 @@ class Portal:
             await cookies.first.click()
         body = await self.text()
         office = digits(settings['officeCnpj'])
-        # The certificate holder must be present in the header/profile before switching.
-        header = await self.page.locator('header, .header-info, .header-menu').all_inner_texts()
-        if office not in digits(' '.join(header)):
+        # The portal exposes the holder in the avatar button's accessible name.
+        identity = self.page.get_by_role('button', name=re.compile(r'^Abrir Menu de usuário '))
+        label = await identity.get_attribute('aria-label') if await identity.count() == 1 else ''
+        holder = re.search(r'\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b|\b\d{14}\b', label or '')
+        if not holder:
             raise Attention('Confirme no Chrome o titular do certificado. O CNPJ do escritório não foi identificado no cabeçalho.')
+        if digits(holder.group()) != office:
+            raise Attention('O CNPJ do certificado autenticado difere do escritório configurado. Confira o titular antes de continuar.')
         if company['cnpj'] in digits(body.split('Empregador:', 1)[-1].split('\n', 1)[0]) and '/servicos' in self.page.url:
             return
-        switch = self.page.get_by_text('Trocar Perfil', exact=True)
-        if await switch.count() and await switch.first.is_visible():
-            await switch.first.click()
-        combo = self.page.get_by_role('combobox', name=re.compile('Perfil'))
+        if '/escolhaPerfil' in self.page.url:
+            heading = self.page.get_by_role('heading', name='Definir Perfil', exact=True)
+            await heading.wait_for(state='visible')
+        else:
+            await self.page.get_by_role('button', name='Trocar Perfil', exact=True).click()
+            heading = self.page.get_by_role('heading', name='Trocar Perfil', exact=True)
+            await heading.wait_for(state='visible')
+        dialog = self.page.get_by_role('dialog').filter(has=heading).last
+        combo = dialog.get_by_role('combobox', name='Perfil', exact=True)
         await combo.click()
-        await self.page.get_by_text('Meu Perfil' if company['cnpj'] == office else 'Procurador', exact=True).last.click()
+        await dialog.get_by_role('option', name='Meu Perfil' if company['cnpj'] == office else 'Procurador', exact=True).click()
         if company['cnpj'] != office:
-            await self.page.get_by_role('textbox', name=re.compile('Empregador a ser representado')).fill(company['cnpj'])
-        buttons = self.page.get_by_role('button', name=re.compile('^(Definir|Selecionar)$'))
+            await dialog.get_by_role('textbox', name='Empregador a ser representado', exact=True).fill(company['cnpj'])
+        buttons = dialog.get_by_role('button', name=re.compile('^(Definir|Selecionar)$'))
         await buttons.last.click()
         await self.page.wait_for_url('**/portal/servicos', timeout=30000)
         body = await self.text()
@@ -140,7 +149,7 @@ class Portal:
                 raise Attention('Configure a competência Inicial e Final no Chrome; o portal alterou os controles.')
             await combo.click()
             await combo.fill(value)
-            await self.page.get_by_text(value, exact=True).last.click()
+            await self.page.get_by_role('option', name=value, exact=True).click()
 
     async def summary(self):
         result = {}
@@ -170,15 +179,27 @@ class Portal:
                             expected=expected, found=actual,
                             difference={k: actual[k]-expected[k] for k in expected})
 
+    async def check(self, selector, checked):
+        control = self.page.locator(selector)
+        if await control.is_checked() != checked:
+            control_id = await control.get_attribute('id')
+            label = self.page.locator(f'label[for="{control_id}"]') if control_id else None
+            if label is not None and await label.count() == 1:
+                await label.click()
+            else:
+                await control.set_checked(checked)
+        if await control.is_checked() != checked:
+            raise Attention('O portal não confirmou o filtro solicitado. Confira no Chrome.')
+
     async def search(self):
         checkbox = self.page.locator('#sem-guia-emitida')
         if await checkbox.count():
-            await checkbox.set_checked(False)
+            await self.check('#sem-guia-emitida', False)
         await self.click('Pesquisar')
         body = await self.text()
         if 'Nenhum item encontrado' in body:
             raise Attention('Nenhum débito encontrado, mesmo incluindo guias emitidas. Confira no sistema de folha.')
-        pending = self.page.locator('[title*="guias aguardando pagamento"], [data-original-title*="guias aguardando pagamento"], [ngbtooltip*="guias aguardando pagamento"]')
+        pending = self.page.locator('[tooltip*="guias aguardando pagamento"], [title*="guias aguardando pagamento"], [data-original-title*="guias aguardando pagamento"], [ngbtooltip*="guias aguardando pagamento"]')
         if await pending.count() or 'Existem guias aguardando pagamento' in body:
             raise Attention('Há guia aguardando pagamento. Recupere a guia existente no Chrome; a emissão automática foi interrompida.', recovery=True)
         icons = self.page.get_by_role('table').locator('[class*="info-circle"], [class*="circle-info"], [class*="info-sign"], svg[data-icon*="info"]')
@@ -231,7 +252,7 @@ class Portal:
         else:
             await self.periods(initial, final)
             for selector, checked in [('#debitos-mensal', True), ('#debitos-rescisorios', False), ('#processo-trabalhista', False)]:
-                await self.page.locator(selector).set_checked(checked)
+                await self.check(selector, checked)
             await self.search()
             await self.page.locator('#selecionar-todos').set_checked(True)
             await self.click('Adicionar à guia')

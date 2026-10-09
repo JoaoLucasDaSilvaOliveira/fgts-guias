@@ -30,3 +30,11 @@ A pedido do operador, o app foi aberto no Linux e o terminal mostrou `RenderFlex
 ## Última rodada de UI
 
 Retirada a escolha de sessão/porta e a conexão ao Chrome externo. Conferir **Abrir Chrome** e fechamento da janela/aba usada: lote ativo ou pausado deve encerrar imediatamente, sem avançar para outra empresa nem abrir nova janela. Conferir o diário após fechamento no intervalo entre solicitação da emissão e download, sem reemitir. Identificação do titular está adiada em [pendências](pendencias.md).
+
+## Teste autorizado no Linux — 09/10/2026
+
+Login concluído pelo operador. O teste pelo app confirmou leitura do titular, seleção de Procurador, empregador, competência e filtros (somente Mensal, Sem guia emitida desmarcado). Corrigidos seletores de opções e cliques em checkboxes customizados por seus rótulos. Ao encontrar guias aguardando pagamento, o app pausou antes de adicionar débitos ou emitir.
+
+Uma guia existente foi reimpressa pela interface do portal, conferida e enviada ao comando de recuperação do motor usado pelo app. Validado PDF no destino escolhido, nome da empresa, número, competência, vencimento e total, registro salvo e retomada sem reemissão. O PDF oficial observado informa a raiz do CNPJ no campo CPF/CNPJ do Empregador; o validador aceita a raiz exata ou o CNPJ completo nesse campo e rejeitou outra raiz.
+
+A emissão nova (etapas 2–4, clique Emitir Guia e captura automática do download) não foi executada: a empresa escolhida já tinha guia pendente. Não considerar o fluxo completo aprovado. Dados reais e PDF permaneceram locais. O terminal não apresentou exceções Dart ou overflow nesta rodada; permaneceu o aviso nativo ATK na inicialização.

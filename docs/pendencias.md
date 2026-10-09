@@ -1,12 +1,8 @@
 # Pendências registradas pelo operador
 
-## Identificação do titular do certificado — adiada
+## Identificação do titular do certificado — corrigida
 
-O operador informou o CNPJ do escritório na interface, mas o app pausou com a mensagem:
-
-> Confirme no Chrome o titular do certificado. O CNPJ do escritório não foi identificado no cabeçalho.
-
-O usuário pediu explicitamente para guardar o problema e corrigir depois. A verificação do cabeçalho em `Portal.profile` foi preservada nesta rodada; não investigar ou flexibilizar automaticamente a validação por causa desta anotação. Ao retomar essa tarefa com autorização, comparar a informação configurada com a identificação realmente exposta pelo portal.
+No teste autorizado em 09/10/2026, o titular foi identificado no `aria-label` do botão **Abrir Menu de usuário**, em vez do texto visível do cabeçalho. O motor compara esse CNPJ com o escritório configurado e pausa quando ausente ou diferente. A seleção de Procurador e a identificação do empregador foram confirmadas no portal.
 
 ## Autenticação Chrome — observação do operador
 

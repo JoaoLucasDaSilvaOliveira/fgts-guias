@@ -42,3 +42,9 @@ Após concluir: logo **FGTS Digital** retorna `/portal/servicos`; **Trocar Perfi
 ## Diferenças entre a planilha de treinamento e o app
 
 A planilha original usava B (nome), L (FGTS), N (consignado) e P (total). O app usa cabeçalhos próprios, incluindo CNPJ obrigatório, e não depende de planilha Google ou cadastro real. Empresas sem funcionários não são automaticamente tratadas como zero por ausência em relatório; os dados importados são a referência explícita.
+
+## Controles observados no teste de 09/10/2026
+
+O titular aparece no nome acessível do botão de usuário. Em escolhaPerfil, aguardar o diálogo **Definir Perfil**; em serviços, abrir **Trocar Perfil**. Escopar controles pelo diálogo correspondente e selecionar opções pelo papel `option`, pois textos iguais aparecem em outros componentes. Checkboxes customizados têm rótulos sobre o input: clicar no rótulo associado e confirmar o estado.
+
+O indicador azul contém o atributo `tooltip` com o texto de guias aguardando pagamento. Seu clique abre **Guias Aguardando Pagamento**, com números clicáveis e tooltip **Reimprimir guia**. Essa reimpressão foi observada e usada manualmente no teste; não foi adicionada recuperação automática ao motor. O PDF reimpresso pode mostrar apenas a raiz de oito dígitos do CNPJ no campo de identificação do empregador.
