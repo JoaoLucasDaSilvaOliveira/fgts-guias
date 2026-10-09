@@ -58,7 +58,19 @@ class Portal:
     async def guard(self):
         await self.checkpoint()
         text = await self.text()
-        if re.search(r'captcha|sou humano|não sou um robô', text, re.I) or any('captcha' in f.url for f in self.page.frames):
+        challenge = bool(re.search(r'captcha inválido|resolva o captcha', text, re.I))
+        for frame in self.page.frames:
+            if frame == self.page.main_frame or 'captcha' not in frame.url.lower():
+                continue
+            owner = await frame.frame_element()
+            if not await owner.is_visible():
+                continue
+            checkbox = frame.get_by_role('checkbox')
+            if await checkbox.count():
+                challenge = challenge or await checkbox.first.get_attribute('aria-checked') != 'true'
+            elif 'bframe' in frame.url or 'challenge' in frame.url:
+                challenge = True
+        if challenge:
             raise Attention('Resolva o CAPTCHA no Chrome e clique em Retomar.')
         if 'acesso.gov.br' in self.page.url or '/login' in self.page.url:
             raise Attention('Entre com GOV.BR e selecione o certificado digital no Chrome. Depois clique em Retomar.')
@@ -69,6 +81,11 @@ class Portal:
         loading = self.page.get_by_text('Carregando', exact=False)
         if await loading.count() and await loading.first.is_visible():
             await loading.first.wait_for(state='hidden', timeout=60000)
+
+    async def employer(self, company):
+        match = re.search(r'Empregador:\s*([\d./-]+)', await self.text())
+        if not match or digits(match.group(1)) != company['cnpj']:
+            raise Attention('O empregador no portal difere do CNPJ selecionado. Confira o perfil.')
 
     async def profile(self, company, settings):
         await self.page.goto(HOME)
@@ -148,7 +165,7 @@ class Portal:
         pending = self.page.locator('[title*="guias aguardando pagamento"], [data-original-title*="guias aguardando pagamento"], [ngbtooltip*="guias aguardando pagamento"]')
         if await pending.count() or 'Existem guias aguardando pagamento' in body:
             raise Attention('Há guia aguardando pagamento. Recupere a guia existente no Chrome; a emissão automática foi interrompida.', recovery=True)
-        icons = self.page.get_by_role('table').locator('[class*="info-circle"], [class*="circle-info"], [class*="info-sign"]')
+        icons = self.page.get_by_role('table').locator('[class*="info-circle"], [class*="circle-info"], [class*="info-sign"], svg[data-icon*="info"]')
         for index in range(await icons.count()):
             icon = icons.nth(index)
             if await icon.is_visible():
@@ -186,6 +203,7 @@ class Portal:
         await self.profile(company, settings)
         await self.page.goto(GUIDE)
         await self.guard()
+        await self.employer(company)
         self.notify('progress', company=company['cnpj'], message='1 de 4 · Conferindo FGTS')
         body = await self.text()
         if 'Há um ou mais débitos já adicionados' in body:
@@ -226,6 +244,7 @@ class Portal:
         self.notify('progress', company=company['cnpj'], message='4 de 4 · Conferindo e emitindo')
         self.compare(company, await self.summary())
         await self.guard()
+        await self.employer(company)
         self.store.save_job(key, {'state':'issuing', 'due':due, 'company':company, 'initial':initial, 'final':final})
         try:
             async with self.page.expect_download(timeout=60000) as info:
