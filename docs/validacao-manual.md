@@ -38,3 +38,9 @@ Login concluído pelo operador. O teste pelo app confirmou leitura do titular, s
 Uma guia existente foi reimpressa pela interface do portal, conferida e enviada ao comando de recuperação do motor usado pelo app. Validado PDF no destino escolhido, nome da empresa, número, competência, vencimento e total, registro salvo e retomada sem reemissão. O PDF oficial observado informa a raiz do CNPJ no campo CPF/CNPJ do Empregador; o validador aceita a raiz exata ou o CNPJ completo nesse campo e rejeitou outra raiz.
 
 A emissão nova (etapas 2–4, clique Emitir Guia e captura automática do download) não foi executada: a empresa escolhida já tinha guia pendente. Não considerar o fluxo completo aprovado. Dados reais e PDF permaneceram locais. O terminal não apresentou exceções Dart ou overflow nesta rodada; permaneceu o aviso nativo ATK na inicialização.
+
+## Correção do teste de salvamento automático
+
+O teste anterior usou reimpressão manual e comando Recuperar PDF, portanto não comprovava a automação do download. A reimpressão pelo indicador azul foi integrada ao motor. No teste seguinte, preservou-se o PDF anterior como backup, deixando ausente o destino registrado; iniciar o lote no app percorreu pesquisa, indicador, diálogo, reimpressão, eventos de download Chrome, validação e gravação sozinho. Conferidos arquivo novo no destino, diário salvo e lote encerrado, sem comandos manuais de download/recuperação. Divergências de FGTS e consignado (mantendo a soma), total e CNPJ foram rejeitadas pelo validador. A emissão de guia nova continua não exercitada.
+
+Na repetição, corrigida a espera pelo campo de competência após navegação. A execução final terminou automaticamente com PDF validado no destino e lote encerrado.

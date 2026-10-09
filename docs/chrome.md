@@ -8,6 +8,6 @@ Ao fechar a aba utilizada ou o Chrome, o app cancela imediatamente o lote, inclu
 
 **Fechar Chrome para trocar certificado** fecha o navegador inteiro e encerra um lote pausado. Abrir novamente e começar um novo lote são ações explícitas. Fechar somente uma aba não basta para trocar o certificado em uma sessão ainda aberta.
 
-Downloads ficam no cache local antes da validação e gravação no destino escolhido. A localização é negada nos portais FGTS/GOV.BR. Nenhum cookie, certificado, perfil ou documento é enviado ao repositório.
+Downloads ficam no cache local antes da validação e gravação no destino escolhido. O motor acompanha os eventos Chrome downloadWillBegin/downloadProgress da página utilizada, aguarda conclusão e copia o arquivo pelo identificador do download. O mesmo mecanismo atende emissão e reimpressão; não depende do diálogo Salvar como nem da escolha manual do arquivo. A localização é negada nos portais FGTS/GOV.BR. Nenhum cookie, certificado, perfil ou documento é enviado ao repositório.
 
 Referência técnica: [Playwright connect_over_cdp](https://playwright.dev/python/docs/api/class-browsertype#browser-type-connect-over-cdp).

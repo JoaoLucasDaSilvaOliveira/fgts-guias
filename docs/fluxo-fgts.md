@@ -15,7 +15,7 @@ Estas notas descrevem o fluxo ensinado pelo operador. Não são um parecer sobre
 
 Competências Inicial e Final vêm do operador, em MM/AAAA. Tipo de débito: somente **Mensal**. Desmarcar **Sem guia emitida** e **Pesquisar**. Essa opção marcada esconde todos ou parte dos débitos com guia emitida; vale também para consignados. Sempre repetir a busca desmarcada antes de declarar ausência ou divergência.
 
-O símbolo azul, com texto **Existem guias aguardando pagamento para este débito**, indica guia pendente, não dívida paga nem autorização para duplicar emissão. Interromper e recuperar a guia existente.
+O símbolo azul, com texto **Existem guias aguardando pagamento para este débito**, indica guia pendente, não dívida paga nem autorização para duplicar emissão. Reimprimir automaticamente uma guia única e validar o PDF; ambiguidades pausam o lote.
 
 Checkbox do cabeçalho seleciona todos os débitos encontrados (inclusive além da página visível). **Adicionar à guia** exibe **Resumo dos débitos adicionados à guia**. Conferir **Total FGTS** contra FGTS MENSAL importado. Nesta etapa nova, **Total da Guia** deve ser o FGTS, sem consignados. Só então **Avançar**.
 
@@ -35,7 +35,7 @@ Manter vencimento válido sugerido pelo portal. O operador descreveu vencimento 
 
 Conferir total final com TOTAL. Registrar intenção local antes de **Emitir Guia**. Capturar download iniciado por esse clique, não os PDFs de detalhamento. Registrar número da guia. Salvar primeiro temporário no destino escolhido; conferir CNPJ, competências, vencimento, número e total no PDF. Nome final: EMPRESA.pdf com caracteres incompatíveis substituídos. Nunca sobrescrever outro documento. Guia emitida não significa PDF salvo.
 
-Timeout ou resultado incerto: recuperar, nunca emitir outra automaticamente. Número emitido pode permitir reimpressão. **CONSULTA DE GUIAS** existe para recuperação; sua navegação detalhada não foi demonstrada, portanto nesta versão o operador baixa o PDF existente e usa **Recuperar PDF**. PDF com formato não reconhecido permanece pendente.
+Timeout ou resultado incerto: recuperar, nunca emitir outra automaticamente. Número emitido pode permitir reimpressão. **CONSULTA DE GUIAS** existe para recuperação; sua navegação detalhada não foi demonstrada, a reimpressão pelo indicador azul dos débitos é automática quando existe uma única guia. A consulta continua como alternativa manual, usando **Recuperar PDF**. PDF com formato não reconhecido permanece pendente.
 
 Após concluir: logo **FGTS Digital** retorna `/portal/servicos`; **Trocar Perfil** começa a próxima empresa.
 
@@ -47,4 +47,4 @@ A planilha original usava B (nome), L (FGTS), N (consignado) e P (total). O app 
 
 O titular aparece no nome acessível do botão de usuário. Em escolhaPerfil, aguardar o diálogo **Definir Perfil**; em serviços, abrir **Trocar Perfil**. Escopar controles pelo diálogo correspondente e selecionar opções pelo papel `option`, pois textos iguais aparecem em outros componentes. Checkboxes customizados têm rótulos sobre o input: clicar no rótulo associado e confirmar o estado.
 
-O indicador azul contém o atributo `tooltip` com o texto de guias aguardando pagamento. Seu clique abre **Guias Aguardando Pagamento**, com números clicáveis e tooltip **Reimprimir guia**. Essa reimpressão foi observada e usada manualmente no teste; não foi adicionada recuperação automática ao motor. O PDF reimpresso pode mostrar apenas a raiz de oito dígitos do CNPJ no campo de identificação do empregador.
+O indicador azul contém o atributo `tooltip` com o texto de guias aguardando pagamento. Seu clique abre **Guias Aguardando Pagamento**, com números clicáveis e tooltip **Reimprimir guia**. A reimpressão foi integrada ao motor e validada pelo app: clicar no indicador, exigir um único número, capturar o download completo, validar o PDF e salvar. Havendo número registrado, exigir que coincida. O PDF reimpresso pode mostrar apenas a raiz de oito dígitos do CNPJ no campo de identificação do empregador.

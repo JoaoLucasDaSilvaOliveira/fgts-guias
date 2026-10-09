@@ -64,7 +64,7 @@ CSV usa UTF-8 e `;`. XLSX usa a primeira aba e primeira linha de cabeçalhos. O 
 5. O vencimento sugerido é preservado; quando hoje é sugerido para atrasados, tenta amanhã e confere os totais. Valores adicionais provocam pausa.
 6. PDF é salvo como `EMPRESA.pdf` na pasta escolhida depois de conferir CNPJ, competência, número, vencimento e total. Caracteres inválidos no nome são substituídos. Documento diferente com mesmo nome não é sobrescrito.
 
-**Aguardando pagamento ou download incerto:** não tente emitir outra guia. No Chrome, localize a guia existente pela reimpressão ou Consulta de Guias, baixe-a e use **Recuperar PDF**, informando número e vencimento. Depois retome: o registro salvo será conferido e reutilizado. A navegação automática da consulta ainda não foi implementada porque não foi demonstrada no treinamento.
+**Aguardando pagamento ou download incerto:** o app procura a guia existente nos débitos pesquisados. Quando o indicador azul disponibiliza uma única guia, reimprime automaticamente, valida CNPJ, competência, FGTS, consignado, total, número e vencimento, e salva na pasta escolhida com o nome da empresa. Se um PDF registrado foi removido, também tenta recuperar a mesma guia. Não solicita nova emissão para substituir uma emissão incerta. Múltiplas guias, divergências ou formato desconhecido pausam o lote. Como alternativa, baixe a guia pela Consulta de Guias e use **Recuperar PDF**; a navegação dessa consulta ainda é manual.
 
 **Fechar Chrome durante o lote:** encerra imediatamente o lote, inclusive quando pausado. O app não reabre a janela nem prossegue para outra empresa. Emissões solicitadas permanecem registradas para recuperação.
 

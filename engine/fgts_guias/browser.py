@@ -7,7 +7,7 @@ from pathlib import Path
 from datetime import date, timedelta
 from .chrome import ChromeSession
 from .domain import digits, money, reais, safe_filename
-from .files import validate_pdf
+from .files import validate_pdf, guide_due
 
 BASE = 'https://fgtsdigital.sistema.gov.br/'
 HOME = BASE + 'portal/servicos'
@@ -145,6 +145,7 @@ class Portal:
     async def periods(self, initial, final):
         for label, value in [('Inicial', initial), ('Final', final)]:
             combo = self.page.get_by_role('combobox', name=re.compile(label))
+            await combo.first.wait_for(state='visible')
             if await combo.count() != 1:
                 raise Attention('Configure a competência Inicial e Final no Chrome; o portal alterou os controles.')
             await combo.click()
@@ -191,7 +192,7 @@ class Portal:
         if await control.is_checked() != checked:
             raise Attention('O portal não confirmou o filtro solicitado. Confira no Chrome.')
 
-    async def search(self):
+    async def search(self, company, settings):
         checkbox = self.page.locator('#sem-guia-emitida')
         if await checkbox.count():
             await self.check('#sem-guia-emitida', False)
@@ -201,7 +202,8 @@ class Portal:
             raise Attention('Nenhum débito encontrado, mesmo incluindo guias emitidas. Confira no sistema de folha.')
         pending = self.page.locator('[tooltip*="guias aguardando pagamento"], [title*="guias aguardando pagamento"], [data-original-title*="guias aguardando pagamento"], [ngbtooltip*="guias aguardando pagamento"]')
         if await pending.count() or 'Existem guias aguardando pagamento' in body:
-            raise Attention('Há guia aguardando pagamento. Recupere a guia existente no Chrome; a emissão automática foi interrompida.', recovery=True)
+            await self.reprint(company, settings)
+            return True
         icons = self.page.get_by_role('table').locator('[class*="info-circle"], [class*="circle-info"], [class*="info-sign"], svg[data-icon*="info"]')
         for index in range(await icons.count()):
             icon = icons.nth(index)
@@ -211,9 +213,21 @@ class Portal:
                 if await tooltip.count():
                     content = ' '.join(await tooltip.all_inner_texts())
                     if 'guias aguardando pagamento' in content.lower():
-                        raise Attention('Há guia aguardando pagamento. Recupere a guia existente.', recovery=True)
+                        await self.reprint(company, settings)
+                        return True
                 else:
                     raise Attention('Símbolo de informação na tabela não reconhecido. Confira se existe guia aguardando pagamento.', recovery=True)
+
+    async def recover_from_portal(self, company, settings):
+        await self.profile(company, settings)
+        await self.page.goto(GUIDE)
+        await self.guard()
+        await self.employer(company)
+        await self.periods(settings['initial'], settings['final'])
+        for selector, checked in [('#debitos-mensal', True), ('#debitos-rescisorios', False), ('#processo-trabalhista', False)]:
+            await self.check(selector, checked)
+        if not await self.search(company, settings):
+            raise Attention('A guia registrada não foi encontrada. Recupere a guia existente; uma nova emissão não será solicitada.', recovery=True)
 
     async def run(self, company, settings):
         await self.launch(settings)
@@ -228,15 +242,19 @@ class Portal:
             try:
                 validate_pdf(path, company, initial, final, previous['due'], previous['guide'])
             except Exception as exc:
-                raise Attention('O PDF salvo precisa de revisão: ' + str(exc), recovery=True)
+                if path.exists():
+                    raise Attention('O PDF salvo precisa de revisão: ' + str(exc), recovery=True)
+                await self.recover_from_portal(company, settings)
+                return
             destination = Path(settings['output']) / safe_filename(company['empresa'])
             if destination.resolve() != path.resolve():
                 await self.recover(company, settings, str(path), previous['guide'], previous['due'])
                 return
             self.notify('saved', company=company['cnpj'], path=str(path), reused=True)
             return
-        if previous and previous['state'] in ['issuing', 'download_pending']:
-            raise Attention('Emissão anterior registrada. Recupere o PDF existente, sem emitir novamente.', recovery=True)
+        if previous and previous['state'] in ['issuing', 'download_pending', 'recovering']:
+            await self.recover_from_portal(company, settings)
+            return
         await self.profile(company, settings)
         await self.page.goto(GUIDE)
         await self.guard()
@@ -253,7 +271,8 @@ class Portal:
             await self.periods(initial, final)
             for selector, checked in [('#debitos-mensal', True), ('#debitos-rescisorios', False), ('#processo-trabalhista', False)]:
                 await self.check(selector, checked)
-            await self.search()
+            if await self.search(company, settings):
+                return
             await self.page.locator('#selecionar-todos').set_checked(True)
             await self.click('Adicionar à guia')
             self.compare(company, await self.summary(), loans=False)
@@ -262,7 +281,8 @@ class Portal:
         actual = await self.summary()
         if actual != {k: company[k] for k in ['fgts','consignado','total']}:
             # Repeat the search with emitted guides visible before reporting a mismatch.
-            await self.search()
+            if await self.search(company, settings):
+                return
             actual = await self.summary()
         self.compare(company, actual)
         await self.click('Avançar')
@@ -284,9 +304,7 @@ class Portal:
         await self.employer(company)
         self.store.save_job(key, {'state':'issuing', 'due':due, 'company':company, 'initial':initial, 'final':final})
         try:
-            async with self.page.expect_download(timeout=60000) as info:
-                await self.click('Emitir Guia')
-            download = await info.value
+            download, _ = await self.chrome.download(self.page, lambda: self.click('Emitir Guia'))
         except Exception as exc:
             raise Attention('A emissão foi solicitada, mas o download não foi confirmado. Recupere a guia existente.', recovery=True) from exc
         body = await self.text()
@@ -295,6 +313,36 @@ class Portal:
             raise Attention('Guia emitida; número não identificado. Recupere e confira o PDF.', recovery=True)
         number = numbers.pop()
         await self.save_download(download, company, settings, due, number)
+
+    async def reprint(self, company, settings):
+        await self.guard()
+        await self.employer(company)
+        icon = self.page.locator('[tooltip*="guias aguardando pagamento"]').first
+        if not await icon.count():
+            raise Attention('A guia pendente não disponibilizou o controle de reimpressão.', recovery=True)
+        await icon.click()
+        dialog = self.page.get_by_role('dialog').filter(has=self.page.get_by_role('heading', name='Guias Aguardando Pagamento', exact=True))
+        await dialog.wait_for(state='visible')
+        links = dialog.locator('[tooltip="Reimprimir guia"]')
+        numbers = [text.strip() for text in await links.all_inner_texts()]
+        if len(numbers) != 1 or not re.fullmatch(r'\d{10,30}-\d', numbers[0]):
+            raise Attention('Há mais de uma guia pendente ou o número não foi identificado. Confira a guia correta.', recovery=True)
+        number = numbers[0]
+        key = self.store.job_key(company, settings['initial'], settings['final'])
+        previous = self.store.job(key)
+        if previous and previous.get('guide') and previous['guide'] != number:
+            raise Attention('A guia pendente difere do número registrado. Confira antes de recuperar.', recovery=True)
+        self.store.save_job(key, {'state':'recovering', 'guide':number, 'company':company,
+                                 'initial':settings['initial'], 'final':settings['final']})
+        self.notify('progress', company=company['cnpj'], message='Baixando e conferindo a guia existente…')
+        try:
+            download, path = await self.chrome.download(self.page, links.first.click)
+            due = guide_due(path)
+            validate_pdf(path, company, settings['initial'], settings['final'], due, number)
+            await self.save_download(download, company, settings, due, number)
+        except Exception as exc:
+            raise Attention('A guia existente não foi salva: ' + str(exc), recovery=True) from exc
+        await dialog.get_by_role('button', name='Fechar', exact=True).click()
 
     async def save_download(self, download, company, settings, due, number):
         key = self.store.job_key(company, settings['initial'], settings['final'])

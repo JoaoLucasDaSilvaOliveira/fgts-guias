@@ -2,6 +2,7 @@
 import asyncio
 import json
 import socket
+import shutil
 import subprocess
 import time
 from urllib.request import build_opener, ProxyHandler
@@ -68,6 +69,42 @@ class ChromeSession:
         except BaseException:
             await self.close()
             raise
+
+    async def download(self, page, action):
+        """Capture Chrome's completed download for this page, including CDP sessions."""
+        session = await self.context.new_cdp_session(page)
+        tree = (await session.send('Page.getFrameTree'))['frameTree']
+        def frames(node):
+            return {node['frame']['id']}.union(*(frames(child) for child in node.get('childFrames', [])))
+        frame_ids = frames(tree)
+        await session.detach()
+        future = asyncio.get_running_loop().create_future()
+        current = None
+        def begin(event):
+            nonlocal current
+            if event.get('frameId') in frame_ids and current is None:
+                current = event['guid']
+        def progress(event):
+            if event.get('guid') != current or future.done():
+                return
+            if event['state'] == 'completed':
+                future.set_result(self.root / 'download-cache' / current)
+            elif event['state'] == 'canceled':
+                future.set_exception(ValueError('Chrome cancelou o download da guia'))
+        self.cdp.on('Browser.downloadWillBegin', begin)
+        self.cdp.on('Browser.downloadProgress', progress)
+        try:
+            await action()
+            path = await asyncio.wait_for(future, timeout=60)
+            if not path.is_file():
+                raise ValueError('Chrome não disponibilizou o arquivo baixado')
+            class Completed:
+                async def save_as(self, destination):
+                    await asyncio.to_thread(shutil.copyfile, path, destination)
+            return Completed(), path
+        finally:
+            self.cdp.remove_listener('Browser.downloadWillBegin', begin)
+            self.cdp.remove_listener('Browser.downloadProgress', progress)
 
     @staticmethod
     def version(endpoint):
