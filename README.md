@@ -57,6 +57,8 @@ O script escolhe Windows automaticamente. Não é necessário instalar Chromium 
 
 CSV usa UTF-8 e `;`. XLSX usa a primeira aba e primeira linha de cabeçalhos. O app não depende de Google Sheets nem extrai automaticamente os relatórios PDF. A transcrição dos valores deve ser conferida antes do lote.
 
+Arraste a divisória no cabeçalho para ajustar a largura das colunas. As larguras ficam salvas. Clique duas vezes na divisória para restaurar a largura padrão da coluna.
+
 ## Otimização do download
 
 Ao lado de **Baixar selecionadas**, escolha:

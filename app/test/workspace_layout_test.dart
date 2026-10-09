@@ -4,11 +4,13 @@ import 'package:fgts_guias/engine.dart';
 import 'package:fgts_guias/main.dart';
 
 class FakeEngine extends EngineClient {
+  final saves = <Map<String, dynamic>>[];
   @override
   Future<void> connect() async {}
   @override
   Future<Map<String, dynamic>> call(String command,
       [Map<String, dynamic> data = const {}]) async {
+    if (command == 'save') saves.add(data);
     if (command != 'bootstrap') return {};
     return {
       'chrome': '/example/chrome',
@@ -78,4 +80,32 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+  testWidgets(
+      'column resizing keeps header and data aligned and persists widths',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final engine = FakeEngine();
+    await tester.pumpWidget(GuideApp(engine: engine));
+    await tester.pumpAndSettle();
+    final handle = find.byKey(const ValueKey('resize-column-empresa'));
+    final field = find.byWidgetPredicate((widget) =>
+        widget is TextFormField && widget.key.toString().contains('-empresa'));
+    final before = tester.getSize(field).width;
+    await tester.drag(handle, const Offset(80, 0));
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+    final after = tester.getSize(field).width;
+    expect(after, greaterThan(before + 40));
+    expect(engine.saves.last['settings']['columnWidths'][1], greaterThan(260));
+    expect(engine.saves.last['rows'][0]['empresa'], 'Empresa de exemplo');
+    expect(tester.takeException(), isNull);
+    await tester.tap(handle);
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(handle);
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(field).width, before);
+    expect(engine.saves.last['settings']['columnWidths'][1], 220);
+  });
 }

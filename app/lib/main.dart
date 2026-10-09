@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'inputs.dart';
@@ -75,6 +76,7 @@ class _WorkspaceState extends State<Workspace> {
         'final': finalPeriod.text,
         'output': output.text,
         'downloadSaved': downloadSaved,
+        'columnWidths': gridWidths,
       };
   @override
   void initState() {
@@ -140,6 +142,16 @@ class _WorkspaceState extends State<Workspace> {
       finalPeriod.text = config['final'] ?? '';
       output.text = config['output'] ?? '';
       downloadSaved = config['downloadSaved'] == true;
+      final savedWidths = config['columnWidths'];
+      if (savedWidths is List && savedWidths.length == gridWidths.length) {
+        for (var index = 0; index < gridWidths.length; index++) {
+          final width = savedWidths[index];
+          if (width is num && width.isFinite) {
+            gridWidths[index] =
+                width.toDouble().clamp(minGridWidths[index], 1200);
+          }
+        }
+      }
       rows = (workspace['rows'] as List? ?? [])
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
@@ -779,7 +791,19 @@ class _WorkspaceState extends State<Workspace> {
     'SITUAÇÃO',
     ''
   ];
-  static const gridWidths = [
+  final gridWidths = List<double>.from(defaultGridWidths);
+  static const minGridWidths = [
+    64.0,
+    120.0,
+    145.0,
+    104.0,
+    104.0,
+    90.0,
+    140.0,
+    100.0,
+    44.0
+  ];
+  static const defaultGridWidths = [
     90.0,
     220.0,
     165.0,
@@ -828,6 +852,80 @@ class _WorkspaceState extends State<Workspace> {
         },
       );
 
+  void resizeColumn(int index, double delta, {bool save = false}) {
+    setState(() => gridWidths[index] =
+        (gridWidths[index] + delta).clamp(minGridWidths[index], 1200));
+    if (save) changed();
+  }
+
+  Widget columnHeader(int index) => Stack(children: [
+        Positioned.fill(
+            child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(gridLabels[index],
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 12))))),
+        if (gridKeys[index] != 'remove')
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            width: 12,
+            child: Semantics(
+              label: 'Ajustar largura: ${gridLabels[index]}',
+              value: '${gridWidths[index].round()} pixels',
+              increasedValue:
+                  '${(gridWidths[index] + 20).clamp(minGridWidths[index], 1200).round()} pixels',
+              decreasedValue:
+                  '${(gridWidths[index] - 20).clamp(minGridWidths[index], 1200).round()} pixels',
+              onIncrease: () => resizeColumn(index, 20, save: true),
+              onDecrease: () => resizeColumn(index, -20, save: true),
+              child: Focus(
+                  onKeyEvent: (_, event) {
+                    if (event is KeyDownEvent &&
+                        (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+                            event.logicalKey ==
+                                LogicalKeyboardKey.arrowRight)) {
+                      resizeColumn(
+                          index,
+                          event.logicalKey == LogicalKeyboardKey.arrowRight
+                              ? 10
+                              : -10,
+                          save: true);
+                      return KeyEventResult.handled;
+                    }
+                    return KeyEventResult.ignored;
+                  },
+                  child: Tooltip(
+                    message: 'Arraste para ajustar a largura',
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.resizeLeftRight,
+                      child: GestureDetector(
+                        key: ValueKey('resize-column-${gridKeys[index]}'),
+                        behavior: HitTestBehavior.opaque,
+                        onHorizontalDragUpdate: (details) =>
+                            resizeColumn(index, details.delta.dx),
+                        onHorizontalDragEnd: (_) => changed(),
+                        onHorizontalDragCancel: changed,
+                        onDoubleTap: () {
+                          setState(() =>
+                              gridWidths[index] = defaultGridWidths[index]);
+                          changed();
+                        },
+                        child: Center(
+                            child: Container(
+                                width: 2,
+                                height: 22,
+                                color: const Color(0xffb1beb3))),
+                      ),
+                    ),
+                  )),
+            ),
+          ),
+      ]);
+
   Widget gridRow(Map<String, dynamic>? row) {
     final header = row == null;
     return Container(
@@ -866,13 +964,11 @@ class _WorkspaceState extends State<Workspace> {
             width: gridWidths[index],
             height: 56,
             padding: EdgeInsets.symmetric(
-                horizontal: gridKeys[index] == 'remove' ? 0 : 12),
+                horizontal: header || gridKeys[index] == 'remove' ? 0 : 12),
             alignment: Alignment.centerLeft,
             color: gridKeys[index] == 'total' ? const Color(0xffdce3dc) : null,
             child: header
-                ? Text(gridLabels[index],
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 12))
+                ? columnHeader(index)
                 : gridKeys[index] == 'status'
                     ? Text({
                           'saved': 'Salvo',
