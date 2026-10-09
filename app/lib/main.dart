@@ -67,6 +67,24 @@ class _WorkspaceState extends State<Workspace> {
   bool ready = false, running = false, paused = false;
   bool downloadSaved = false;
   String status = 'Iniciando o aplicativo…', chrome = '';
+  String? activeCompany;
+  String? get activeCompanyLabel {
+    if (activeCompany == null) return null;
+    for (final row in rows) {
+      if (row['cnpj'].toString().replaceAll(RegExp(r'\D'), '') ==
+          activeCompany) {
+        final code = row['cod']?.toString().trim() ?? '';
+        final name = row['empresa']?.toString().trim() ?? '';
+        return name.isEmpty
+            ? maskCnpj(activeCompany!)
+            : code.isEmpty
+                ? name
+                : '$code — $name';
+      }
+    }
+    return maskCnpj(activeCompany!);
+  }
+
   StreamSubscription<Map<String, dynamic>>? subscription;
   Timer? saver;
   Map<String, dynamic> get settings => {
@@ -96,6 +114,7 @@ class _WorkspaceState extends State<Workspace> {
         status = event['message']?.toString() ?? status;
         if (event['company'] != null) {
           states[event['company'].toString()] = event['event'].toString();
+          activeCompany = event['company'].toString();
         }
         if (event['event'] == 'attention') {
           paused = true;
@@ -138,8 +157,10 @@ class _WorkspaceState extends State<Workspace> {
           running = false;
           paused = false;
           attention = null;
+          activeCompany = null;
         }
-        log.add(status);
+        final companyLabel = activeCompanyLabel;
+        log.add(companyLabel == null ? status : '$companyLabel · $status');
         if (log.length > 80) log.removeAt(0);
       });
     });
@@ -298,6 +319,7 @@ class _WorkspaceState extends State<Workspace> {
         states.clear();
         log.clear();
         status = 'Iniciando o lote…';
+        activeCompany = null;
         running = true;
         paused = false;
         attention = null;
@@ -1121,6 +1143,17 @@ class _WorkspaceState extends State<Workspace> {
                                         ),
                                       ),
                                       const SizedBox(height: 16),
+                                      if (activeCompanyLabel != null) ...[
+                                        SelectableText(
+                                          activeCompanyLabel!,
+                                          key: const ValueKey('active-company'),
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                      ],
                                       SelectableText(status),
                                       if (attention?['company'] != null)
                                         Padding(

@@ -41,6 +41,44 @@ class FakeEngine extends EngineClient {
 }
 
 void main() {
+  testWidgets(
+      'tracking identifies the company through a pause and clears it on completion',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final engine = FakeEngine();
+    await tester.pumpWidget(GuideApp(engine: engine));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Baixar selecionadas'));
+    await tester.pump();
+    engine.events.add({
+      'event': 'progress',
+      'company': '00000000000191',
+      'message': 'Abrindo empresa…'
+    });
+    await tester.pump();
+    expect(find.byKey(const ValueKey('active-company')), findsOneWidget);
+    expect(find.text('1 — Empresa de exemplo'), findsOneWidget);
+    engine.events.add({
+      'event': 'attention',
+      'company': '00000000000191',
+      'message': 'Confira os valores.'
+    });
+    await tester.pump();
+    expect(find.text('1 — Empresa de exemplo'), findsOneWidget);
+    engine.events.add({
+      'event': 'saved',
+      'company': '00000000000191',
+      'path': '/example/guia.pdf'
+    });
+    await tester.pump();
+    engine.events.add({'event': 'finished', 'completed': true});
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('active-company')), findsNothing);
+    expect(find.text('Lote concluído. 1 guia salva.'), findsOneWidget);
+    expect(find.textContaining('0 já salvas'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
   for (final size in [
     const Size(800, 650),
     const Size(1280, 800),

@@ -77,6 +77,7 @@ class Engine:
                         await self.checkpoint()
                         workspace = self.store.get('workspace', {})
                         source = next((r for r in workspace.get('rows', []) if digits(r.get('cnpj')) == digits(self.current['cnpj'])), self.current)
+                        self.event('progress', company=digits(source['cnpj']), message='Abrindo empresa…')
                         await self.portal.run(normalize_row(source), settings)
                         break
                     except RetryCompany:

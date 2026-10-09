@@ -8,7 +8,7 @@ No teste autorizado em 09/10/2026, o titular foi identificado no `aria-label` do
 
 O operador confirmou que o GOV.BR deixou de bloquear o Chrome do app. A opção Chrome já aberto foi retirada a seu pedido. Manter abertura convencional e perfil persistente.
 
-## Próxima minor: v0.2.0 — instalação e atualizações
+## Próxima minor após v0.2.0: v0.3.0 — instalação e atualizações
 
 Escopo solicitado pelo operador. Apenas registrado; não implementar até nova autorização.
 
