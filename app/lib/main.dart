@@ -144,7 +144,7 @@ class _WorkspaceState extends State<Workspace> {
         chrome = data['chrome']?.toString() ?? '';
         status = chrome.isEmpty
             ? 'Instale o Google Chrome e reabra o aplicativo para emitir guias.'
-            : 'Adicione as empresas e confira os dados antes de emitir.';
+            : 'Pronto.';
       });
     } catch (e) {
       setState(() => status =
@@ -218,8 +218,7 @@ class _WorkspaceState extends State<Workspace> {
         rows.clear();
         states.clear();
         attention = null;
-        status =
-            'Empresas removidas. Importe uma planilha ou adicione uma empresa para começar.';
+        status = 'Empresas removidas.';
       });
     } catch (error) {
       showError(error);
@@ -714,11 +713,6 @@ class _WorkspaceState extends State<Workspace> {
                         color: ink,
                       ),
                     ),
-                    const SizedBox(width: 20),
-                    const Text(
-                      'Emissão de guias em lote',
-                      style: TextStyle(color: Colors.black54),
-                    ),
                     const Spacer(),
                     Chip(
                       label: Text(
@@ -787,8 +781,6 @@ class _WorkspaceState extends State<Workspace> {
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
                   title: const Text('Baixar novamente guias já salvas'),
-                  subtitle: const Text(
-                      'Busca a guia existente no portal. Desmarcado, confere e reaproveita o PDF salvo.'),
                   value: downloadSaved,
                   onChanged: ready && !running
                       ? (value) {
@@ -908,12 +900,6 @@ class _WorkspaceState extends State<Workspace> {
                                         ),
                                       if (attention?['guide'] != null)
                                         Text('Guia: ${attention!['guide']}'),
-                                      if (attention?['decision_id'] != null)
-                                        const Padding(
-                                          padding: EdgeInsets.only(top: 12),
-                                          child: Text(
-                                              'Aceitar autoriza apenas a diferença mostrada nesta etapa. Os dados das empresas permanecem como informados.'),
-                                        ),
                                       if (attention?['expected'] != null)
                                         SingleChildScrollView(
                                           scrollDirection: Axis.horizontal,
@@ -921,12 +907,6 @@ class _WorkspaceState extends State<Workspace> {
                                         ),
                                       if (paused && running) ...[
                                         const SizedBox(height: 20),
-                                        Text(
-                                          attention?['decision_id'] != null
-                                              ? 'Negar mantém o lote pausado para você revisar os dados.'
-                                              : 'Revise os dados ou resolva a pendência no Chrome. Depois, clique em Retomar para conferir novamente.',
-                                        ),
-                                        const SizedBox(height: 12),
                                         Wrap(
                                           spacing: 8,
                                           runSpacing: 8,
