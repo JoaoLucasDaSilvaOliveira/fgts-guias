@@ -48,6 +48,7 @@ class Workspace extends StatefulWidget {
 class _WorkspaceState extends State<Workspace> {
   final engine = EngineClient();
   final tableScroll = ScrollController();
+  final tableHorizontalScroll = ScrollController();
   final office = TextEditingController(),
       cnpj = TextEditingController(),
       initial = TextEditingController(),
@@ -405,140 +406,161 @@ class _WorkspaceState extends State<Workspace> {
                   )
                 : Scrollbar(
                     controller: tableScroll,
-                    child: SingleChildScrollView(
-                      controller: tableScroll,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: DataTable(
-                          showCheckboxColumn: true,
-                          columnSpacing: 22,
-                          headingRowColor: WidgetStateProperty.all(
-                            const Color(0xffe6ebe5),
-                          ),
-                          columns: [
-                            for (final label in [
-                              'COD',
-                              'EMPRESA',
-                              'CNPJ',
-                              'FGTS MENSAL',
-                              'CONSIGNADO',
-                              'TOTAL',
-                              'OBSERVAÇÕES',
-                              'SITUAÇÃO',
-                              '',
-                            ])
-                              DataColumn(
-                                label: Text(
-                                  label,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
+                    notificationPredicate: (notification) =>
+                        notification.metrics.axis == Axis.vertical,
+                    child: Scrollbar(
+                      controller: tableHorizontalScroll,
+                      thumbVisibility: true,
+                      scrollbarOrientation: ScrollbarOrientation.bottom,
+                      notificationPredicate: (notification) =>
+                          notification.metrics.axis == Axis.horizontal,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 14, right: 12),
+                        child: SingleChildScrollView(
+                          controller: tableHorizontalScroll,
+                          scrollDirection: Axis.horizontal,
+                          child: SingleChildScrollView(
+                            controller: tableScroll,
+                            child: DataTable(
+                              showCheckboxColumn: true,
+                              columnSpacing: 22,
+                              headingRowColor: WidgetStateProperty.all(
+                                const Color(0xffe6ebe5),
                               ),
-                          ],
-                          rows: [
-                            for (final row in rows)
-                              DataRow(
-                                selected: row['selected'] != false,
-                                onSelectChanged: running
-                                    ? null
-                                    : (value) {
-                                        setState(() => row['selected'] = value);
-                                        changed();
-                                      },
-                                cells: [
-                                  for (final key in [
-                                    'cod',
-                                    'empresa',
-                                    'cnpj',
-                                    'fgts',
-                                    'consignado',
-                                    'total',
-                                    'observacoes',
-                                  ])
-                                    DataCell(
-                                      SizedBox(
-                                        width: key == 'empresa'
-                                            ? 220
-                                            : key == 'observacoes'
-                                                ? 230
-                                                : key == 'cnpj'
-                                                    ? 165
-                                                    : 100,
-                                        child: TextFormField(
-                                          key: ValueKey(
-                                            '${identityHashCode(row)}-$key',
-                                          ),
-                                          controller: controllers
-                                              .putIfAbsent(row,
-                                                  () => CompanyControllers(row))
-                                              .fields[key],
-                                          inputFormatters: key == 'cnpj'
-                                              ? [CnpjFormatter()]
-                                              : ['fgts', 'consignado', 'total']
-                                                      .contains(key)
-                                                  ? [MoneyFormatter()]
-                                                  : null,
-                                          keyboardType: [
-                                            'fgts',
-                                            'consignado',
-                                            'total'
-                                          ].contains(key)
-                                              ? const TextInputType
-                                                  .numberWithOptions(
-                                                  decimal: true)
-                                              : key == 'cnpj'
-                                                  ? TextInputType.number
-                                                  : TextInputType.text,
-                                          enabled: !running ||
-                                              (paused &&
-                                                  [
-                                                    'fgts',
-                                                    'consignado',
-                                                    'total',
-                                                    'observacoes'
-                                                  ].contains(key)),
-                                          decoration: const InputDecoration(
-                                            border: InputBorder.none,
-                                          ),
-                                          onChanged: (value) {
-                                            row[key] = value;
-                                            changed();
-                                          },
-                                        ),
+                              columns: [
+                                for (final label in [
+                                  'COD',
+                                  'EMPRESA',
+                                  'CNPJ',
+                                  'FGTS MENSAL',
+                                  'CONSIGNADO',
+                                  'TOTAL',
+                                  'OBSERVAÇÕES',
+                                  'SITUAÇÃO',
+                                  '',
+                                ])
+                                  DataColumn(
+                                    label: Text(
+                                      label,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                  DataCell(
-                                    Text(
-                                      {
-                                            'saved': 'Salvo',
-                                            'attention': 'Atenção',
-                                            'progress': 'Em andamento',
-                                            'skipped': 'Ignorada',
-                                            'finished': 'Interrompida',
-                                          }[states[row['cnpj']
-                                              .toString()
-                                              .replaceAll(
-                                                  RegExp(r'\D'), '')]] ??
-                                          'Preparada',
-                                    ),
                                   ),
-                                  DataCell(
-                                    IconButton(
-                                      tooltip: 'Remover empresa',
-                                      icon: const Icon(Icons.close, size: 18),
-                                      onPressed: running
-                                          ? null
-                                          : () {
-                                              setState(() => rows.remove(row));
-                                              maskRows();
-                                              changed();
-                                            },
-                                    ),
+                              ],
+                              rows: [
+                                for (final row in rows)
+                                  DataRow(
+                                    selected: row['selected'] != false,
+                                    onSelectChanged: running
+                                        ? null
+                                        : (value) {
+                                            setState(
+                                                () => row['selected'] = value);
+                                            changed();
+                                          },
+                                    cells: [
+                                      for (final key in [
+                                        'cod',
+                                        'empresa',
+                                        'cnpj',
+                                        'fgts',
+                                        'consignado',
+                                        'total',
+                                        'observacoes',
+                                      ])
+                                        DataCell(
+                                          SizedBox(
+                                            width: key == 'empresa'
+                                                ? 220
+                                                : key == 'observacoes'
+                                                    ? 230
+                                                    : key == 'cnpj'
+                                                        ? 165
+                                                        : 100,
+                                            child: TextFormField(
+                                              key: ValueKey(
+                                                '${identityHashCode(row)}-$key',
+                                              ),
+                                              controller: controllers
+                                                  .putIfAbsent(
+                                                      row,
+                                                      () => CompanyControllers(
+                                                          row))
+                                                  .fields[key],
+                                              inputFormatters: key == 'cnpj'
+                                                  ? [CnpjFormatter()]
+                                                  : [
+                                                      'fgts',
+                                                      'consignado',
+                                                      'total'
+                                                    ].contains(key)
+                                                      ? [MoneyFormatter()]
+                                                      : null,
+                                              keyboardType: [
+                                                'fgts',
+                                                'consignado',
+                                                'total'
+                                              ].contains(key)
+                                                  ? const TextInputType
+                                                      .numberWithOptions(
+                                                      decimal: true)
+                                                  : key == 'cnpj'
+                                                      ? TextInputType.number
+                                                      : TextInputType.text,
+                                              enabled: !running ||
+                                                  (paused &&
+                                                      [
+                                                        'fgts',
+                                                        'consignado',
+                                                        'total',
+                                                        'observacoes'
+                                                      ].contains(key)),
+                                              decoration: const InputDecoration(
+                                                border: InputBorder.none,
+                                              ),
+                                              onChanged: (value) {
+                                                row[key] = value;
+                                                changed();
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                      DataCell(
+                                        Text(
+                                          {
+                                                'saved': 'Salvo',
+                                                'attention': 'Atenção',
+                                                'progress': 'Em andamento',
+                                                'skipped': 'Ignorada',
+                                                'finished': 'Interrompida',
+                                              }[states[row['cnpj']
+                                                  .toString()
+                                                  .replaceAll(
+                                                      RegExp(r'\D'), '')]] ??
+                                              'Preparada',
+                                        ),
+                                      ),
+                                      DataCell(
+                                        IconButton(
+                                          tooltip: 'Remover empresa',
+                                          icon:
+                                              const Icon(Icons.close, size: 18),
+                                          onPressed: running
+                                              ? null
+                                              : () {
+                                                  setState(
+                                                      () => rows.remove(row));
+                                                  maskRows();
+                                                  changed();
+                                                },
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                          ],
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -831,6 +853,7 @@ class _WorkspaceState extends State<Workspace> {
   @override
   void dispose() {
     tableScroll.dispose();
+    tableHorizontalScroll.dispose();
     saver?.cancel();
     subscription?.cancel();
     engine.close();
