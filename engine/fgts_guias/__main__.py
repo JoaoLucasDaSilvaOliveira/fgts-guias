@@ -15,6 +15,7 @@ class Engine:
         self.skip = False
         self.current = None
         self.browser_finished = False
+        self.auth_watcher = None
         self.portal = Portal(self.store, self.event, self.checkpoint, self.browser_closed)
     def browser_closed(self):
         if self.task and not self.task.done() and not self.browser_finished:
@@ -27,6 +28,25 @@ class Engine:
         await self.gate.wait()
         if self.skip:
             raise ValueError('Empresa ignorada pelo operador')
+    def cancel_auth_watcher(self):
+        if self.auth_watcher and not self.auth_watcher.done():
+            self.auth_watcher.cancel()
+        self.auth_watcher = None
+
+    async def watch_authentication(self, settings):
+        try:
+            while not self.gate.is_set():
+                await asyncio.sleep(1)
+                if await self.portal.authentication_ready(settings):
+                    await self.portal.visibility(False)
+                    self.gate.set()
+                    self.event('progress', message='Autenticação concluída. Retomando em segundo plano…')
+                    return
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            self.event('diagnostic', message='Retomada automática indisponível; use Retomar: ' + str(exc))
+
     async def batch(self, rows, settings):
         try:
             for source in rows:
@@ -45,16 +65,30 @@ class Engine:
                             self.event('skipped', company=digits(self.current['cnpj']))
                             break
                         self.gate.clear()
-                        self.event('attention', company=digits(self.current['cnpj']), message=str(exc), **getattr(exc, 'details', {}))
+                        details = getattr(exc, 'details', {})
+                        self.event('attention', company=digits(self.current['cnpj']), message=str(exc), **details)
+                        try:
+                            await self.portal.visibility(True)
+                        except Exception as window_error:
+                            self.event('diagnostic', message='Não foi possível mostrar Chrome: ' + str(window_error))
+                        self.cancel_auth_watcher()
+                        if details.get('reason') in ['authentication', 'captcha']:
+                            self.auth_watcher = asyncio.create_task(self.watch_authentication(settings))
                         await self.gate.wait()
+                        self.cancel_auth_watcher()
                         if self.skip:
                             self.event('skipped', company=digits(self.current['cnpj']))
                             break
+            try:
+                await self.portal.visibility(False)
+            except Exception as exc:
+                self.event('diagnostic', message='Não foi possível minimizar Chrome ao concluir: ' + str(exc))
             self.event('finished', message='Lote encerrado. Confira as empresas salvas e ignoradas.')
         except asyncio.CancelledError:
             if not self.browser_finished:
                 self.event('finished', message='Lote interrompido. Emissões solicitadas permanecem registradas.')
         finally:
+            self.cancel_auth_watcher()
             self.current = None
     async def command(self, name, data):
         if name == 'bootstrap':
@@ -67,9 +101,11 @@ class Engine:
             write_table(data['path'], [] if name == 'template' else data['rows'])
         elif name == 'open_browser':
             if self.task and not self.task.done():
-                raise ValueError('Encerre o lote antes de abrir outra sessão')
-            await self.portal.launch(data['settings'])
-            self.event('progress', message='Chrome conectado. Entre no GOV.BR antes de iniciar o lote.')
+                if not self.portal.page or self.portal.page.is_closed():
+                    raise ValueError('Encerre o lote antes de abrir outra sessão')
+            else:
+                await self.portal.launch(data['settings'])
+            await self.portal.visibility(True)
         elif name == 'start':
             if self.task and not self.task.done():
                 raise ValueError('Já existe um lote em andamento')
@@ -90,12 +126,19 @@ class Engine:
             self.gate.set()
             self.task = asyncio.create_task(self.batch(rows, dict(settings)))
         elif name == 'pause':
+            self.cancel_auth_watcher()
             self.gate.clear()
+            await self.portal.visibility(True)
             self.event('attention', message='Pausado. A ação atual será concluída antes da pausa.')
         elif name == 'resume':
+            await self.portal.guard(checkpoint=False)
+            await self.portal.visibility(False)
+            self.cancel_auth_watcher()
             self.gate.set()
             self.event('progress', message='Retomando conferência…')
         elif name == 'skip':
+            self.cancel_auth_watcher()
+            await self.portal.visibility(False)
             self.skip = True
             self.gate.set()
         elif name == 'stop':

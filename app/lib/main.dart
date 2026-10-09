@@ -80,6 +80,7 @@ class _WorkspaceState extends State<Workspace> {
     subscription = engine.events.stream.listen((event) {
       if (!mounted) return;
       setState(() {
+        if (event['event'] == 'browser_visibility') return;
         if (event['event'] == 'diagnostic') {
           log.add(event['message'].toString());
           return;
@@ -652,7 +653,7 @@ class _WorkspaceState extends State<Workspace> {
                 const SizedBox(height: 12),
                 Wrap(spacing: 12, runSpacing: 12, children: [
                   OutlinedButton.icon(
-                      onPressed: ready && !running
+                      onPressed: ready
                           ? () => act('open_browser', {'settings': settings})
                           : null,
                       icon: const Icon(Icons.open_in_browser),
@@ -790,7 +791,7 @@ class _WorkspaceState extends State<Workspace> {
                                       ),
                                       const SizedBox(height: 8),
                                       const Text(
-                                        'Selecione o certificado, informe o PIN e resolva CAPTCHA diretamente no Chrome. A localização não é autorizada.',
+                                        'O Chrome fica minimizado durante o lote e aparece quando precisa de você. Conclua certificado, PIN ou CAPTCHA no Chrome; a autenticação concluída retoma automaticamente. Para outras pendências, use Retomar. Abrir Chrome permite acompanhar a página.',
                                       ),
                                       TextButton(
                                         onPressed: ready && (!running || paused)

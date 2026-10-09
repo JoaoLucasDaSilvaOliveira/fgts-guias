@@ -70,6 +70,25 @@ class ChromeSession:
             await self.close()
             raise
 
+    async def visibility(self, page, visible):
+        """Restore/minimize the same window without interrupting its session."""
+        if not self.cdp or not page or page.is_closed():
+            return
+        session = await self.context.new_cdp_session(page)
+        try:
+            target = (await session.send('Target.getTargetInfo'))['targetInfo']['targetId']
+            window = await self.cdp.send('Browser.getWindowForTarget', {'targetId':target})
+            state = 'normal' if visible else 'minimized'
+            await self.cdp.send('Browser.setWindowBounds', {
+                'windowId':window['windowId'], 'bounds':{'windowState':state}})
+            confirmed = await self.cdp.send('Browser.getWindowBounds', {'windowId':window['windowId']})
+            if confirmed['bounds']['windowState'] != state:
+                raise ValueError('Chrome não confirmou a alteração da janela.')
+            if visible:
+                await page.bring_to_front()
+        finally:
+            await session.detach()
+
     async def download(self, page, action, timeout=60):
         """Capture Chrome's completed download for this page, including CDP sessions."""
         session = await self.context.new_cdp_session(page)

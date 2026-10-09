@@ -61,7 +61,27 @@ class Portal:
         page.on('close', lambda *_: self.window_closed(page))
         if not candidates:
             await self.page.goto(BASE)
-        await self.page.bring_to_front()
+        await self.visibility(False)
+
+    async def visibility(self, visible):
+        await self.chrome.visibility(self.page, visible)
+        self.notify('browser_visibility', visible=visible)
+
+    async def authentication_ready(self, settings):
+        if not self.page or self.page.is_closed():
+            return False
+        if not self.page.url.startswith(BASE) or '/login' in self.page.url:
+            return False
+        try:
+            await self.guard(checkpoint=False)
+        except Attention:
+            return False
+        identity = self.page.get_by_role('button', name=re.compile(r'^Abrir Menu de usuário '))
+        if await identity.count() != 1:
+            return False
+        label = await identity.get_attribute('aria-label') or ''
+        holder = re.search(r'\b\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}\b|\b\d{14}\b', label)
+        return bool(holder and digits(holder.group()) == digits(settings['officeCnpj']))
 
     def window_closed(self, source):
         if source not in (self.page, self.chrome.browser):
@@ -76,8 +96,9 @@ class Portal:
     async def text(self):
         return await self.page.locator('body').inner_text()
 
-    async def guard(self):
-        await self.checkpoint()
+    async def guard(self, checkpoint=True):
+        if checkpoint:
+            await self.checkpoint()
         text = await self.text()
         challenge = bool(re.search(r'captcha inválido|resolva o captcha', text, re.I))
         for frame in self.page.frames:
