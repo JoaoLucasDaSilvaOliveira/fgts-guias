@@ -12,7 +12,8 @@ const ink = Color(0xff193b35);
 const paper = Color(0xfff5f4ef);
 
 class GuideApp extends StatelessWidget {
-  const GuideApp({super.key});
+  final EngineClient? engine;
+  const GuideApp({super.key, this.engine});
   @override
   Widget build(BuildContext context) => MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -35,18 +36,19 @@ class GuideApp extends StatelessWidget {
             headlineMedium: TextStyle(fontWeight: FontWeight.w700, color: ink),
           ),
         ),
-        home: const Workspace(),
+        home: Workspace(engine: engine),
       );
 }
 
 class Workspace extends StatefulWidget {
-  const Workspace({super.key});
+  final EngineClient? engine;
+  const Workspace({super.key, this.engine});
   @override
   State<Workspace> createState() => _WorkspaceState();
 }
 
 class _WorkspaceState extends State<Workspace> {
-  final engine = EngineClient();
+  late final EngineClient engine;
   final tableScroll = ScrollController();
   final tableHorizontalScroll = ScrollController();
   final office = TextEditingController(),
@@ -75,6 +77,7 @@ class _WorkspaceState extends State<Workspace> {
   @override
   void initState() {
     super.initState();
+    engine = widget.engine ?? EngineClient();
     connect();
   }
 
@@ -469,6 +472,214 @@ class _WorkspaceState extends State<Workspace> {
     );
   }
 
+  void addCompany() {
+    setState(() => rows.add({
+          'cod': '',
+          'empresa': '',
+          'cnpj': '',
+          'fgts': '',
+          'consignado': '',
+          'total': '',
+          'observacoes': '',
+          'selected': true,
+        }));
+    changed();
+  }
+
+  Widget settingsCard() => Material(
+        color: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: Color(0xffdce3dc)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: ExpansionTile(
+          key: ValueKey('settings-$ready'),
+          initiallyExpanded:
+              ready && (cnpj.text.isEmpty || output.text.isEmpty),
+          shape: const Border(),
+          collapsedShape: const Border(),
+          leading: const Icon(Icons.tune, size: 20),
+          title: const Text('Configuração do lote',
+              style: TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: initial.text.isEmpty
+              ? null
+              : Text(
+                  '${office.text} · ${initial.text} a ${finalPeriod.text}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+          childrenPadding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+          children: [
+            Wrap(spacing: 12, runSpacing: 12, children: [
+              field('Titular do certificado', office,
+                  width: 220, enabled: !running),
+              field('CNPJ do titular', cnpj, width: 200, enabled: !running),
+              competence('Período inicial', initial),
+              competence('Período final', finalPeriod),
+              SizedBox(
+                  width: 300,
+                  child: TextField(
+                    controller: output,
+                    readOnly: true,
+                    decoration: InputDecoration(
+                      labelText: 'Pasta das guias',
+                      suffixIcon: IconButton(
+                        tooltip: 'Escolher pasta',
+                        icon: const Icon(Icons.folder_open),
+                        onPressed: running
+                            ? null
+                            : () async {
+                                final path = await FilePicker.platform
+                                    .getDirectoryPath();
+                                if (path != null) {
+                                  setState(() => output.text = path);
+                                  changed();
+                                }
+                              },
+                      ),
+                    ),
+                  )),
+            ]),
+          ],
+        ),
+      );
+
+  Widget emissionActions() => Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          if (!running) ...[
+            FilledButton.icon(
+              onPressed: ready &&
+                      chrome.isNotEmpty &&
+                      rows.any((r) => r['selected'] != false)
+                  ? start
+                  : null,
+              icon: Icon(
+                  downloadSaved ? Icons.download_outlined : Icons.play_arrow),
+              label: Text(downloadSaved
+                  ? 'Baixar selecionadas'
+                  : 'Emitir selecionadas'),
+            ),
+            PopupMenuButton<String>(
+              enabled: ready,
+              tooltip: 'Opções de emissão',
+              constraints: const BoxConstraints(minWidth: 320, maxWidth: 360),
+              onSelected: (value) {
+                if (value == 'download') {
+                  setState(() => downloadSaved = !downloadSaved);
+                  changed();
+                } else if (value == 'restart') {
+                  restartEmission();
+                }
+              },
+              itemBuilder: (_) => [
+                CheckedPopupMenuItem(
+                    key: const ValueKey('download-saved-option'),
+                    value: 'download',
+                    checked: downloadSaved,
+                    height: 64,
+                    child: const SizedBox(
+                        width: 210,
+                        child: Text('Baixar novamente guias já salvas'))),
+                const PopupMenuDivider(),
+                PopupMenuItem(
+                    value: 'restart',
+                    enabled: chrome.isNotEmpty &&
+                        rows.any((r) => r['selected'] != false),
+                    child: const Row(children: [
+                      Icon(Icons.restart_alt, size: 18),
+                      SizedBox(width: 12),
+                      Flexible(child: Text('Reiniciar emissão'))
+                    ])),
+              ],
+              child: Container(
+                height: 44,
+                width: 44,
+                decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xffb9c8bd)),
+                    borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.keyboard_arrow_down, color: ink),
+              ),
+            ),
+          ] else ...[
+            if (!paused)
+              OutlinedButton.icon(
+                  onPressed: () => act('pause'),
+                  icon: const Icon(Icons.pause),
+                  label: const Text('Pausar')),
+            TextButton(
+                onPressed: () => act('stop'),
+                child: const Text('Encerrar lote')),
+          ],
+        ],
+      );
+
+  Widget companyToolbar() => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: LayoutBuilder(builder: (context, size) {
+          final companies = Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                TextButton.icon(
+                    onPressed: ready && !running ? importRows : null,
+                    icon: const Icon(Icons.upload_file_outlined, size: 18),
+                    label: const Text('Importar')),
+                TextButton.icon(
+                    onPressed: ready && !running ? addCompany : null,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Adicionar')),
+                PopupMenuButton<String>(
+                  tooltip: 'Opções da planilha',
+                  enabled: ready,
+                  onSelected: (value) {
+                    if (value == 'template') export(true);
+                    if (value == 'export') export(false);
+                    if (value == 'remove') removeAllCompanies();
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                        value: 'template', child: Text('Baixar modelo')),
+                    const PopupMenuItem(
+                        value: 'export', child: Text('Exportar planilha')),
+                    const PopupMenuDivider(),
+                    PopupMenuItem(
+                        value: 'remove',
+                        enabled: !running && rows.isNotEmpty,
+                        child: const Text('Remover todas',
+                            style: TextStyle(color: Color(0xff9a3427)))),
+                  ],
+                  child: const Padding(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text('Planilha'),
+                        SizedBox(width: 4),
+                        Icon(Icons.expand_more, size: 18)
+                      ])),
+                ),
+              ]);
+          if (size.maxWidth >= 650) {
+            return Row(children: [
+              Expanded(child: companies),
+              const SizedBox(width: 12),
+              emissionActions()
+            ]);
+          }
+          return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                companies,
+                const SizedBox(height: 8),
+                emissionActions()
+              ]);
+        }),
+      );
+
   Widget table() => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -484,10 +695,13 @@ class _WorkspaceState extends State<Workspace> {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 8),
+          companyToolbar(),
+          const Divider(height: 1),
           Expanded(
             child: rows.isEmpty
                 ? Center(
+                    child: SingleChildScrollView(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -506,7 +720,7 @@ class _WorkspaceState extends State<Workspace> {
                         ),
                       ],
                     ),
-                  )
+                  ))
                 : Scrollbar(
                     controller: tableScroll,
                     notificationPredicate: (notification) =>
@@ -696,7 +910,7 @@ class _WorkspaceState extends State<Workspace> {
   Widget build(BuildContext context) => Scaffold(
         body: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(28),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -714,165 +928,40 @@ class _WorkspaceState extends State<Workspace> {
                       ),
                     ),
                     const Spacer(),
-                    Chip(
-                      label: Text(
-                        chrome.isEmpty
-                            ? 'Instale o Google Chrome'
-                            : 'Google Chrome instalado',
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    field(
-                      'Titular do certificado',
-                      office,
-                      width: 230,
-                      enabled: !running,
-                    ),
-                    field(
-                      'CNPJ do titular',
-                      cnpj,
-                      width: 200,
-                      enabled: !running,
-                    ),
-                    competence('Inicial · MM/AAAA', initial),
-                    competence('Final · MM/AAAA', finalPeriod),
-                    SizedBox(
-                      width: 340,
-                      child: TextField(
-                        controller: output,
-                        readOnly: true,
-                        decoration: InputDecoration(
-                          labelText: 'Pasta para salvar as guias',
-                          suffixIcon: IconButton(
-                            tooltip: 'Escolher pasta',
-                            icon: const Icon(Icons.folder_open),
-                            onPressed: running
-                                ? null
-                                : () async {
-                                    final path = await FilePicker.platform
-                                        .getDirectoryPath();
-                                    if (path != null) {
-                                      setState(() => output.text = path);
-                                      changed();
-                                    }
-                                  },
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Wrap(spacing: 12, runSpacing: 12, children: [
-                  OutlinedButton.icon(
+                    OutlinedButton.icon(
                       onPressed: ready
                           ? () => act('open_browser', {'settings': settings})
                           : null,
-                      icon: const Icon(Icons.open_in_browser),
-                      label: const Text('Abrir Chrome')),
-                ]),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  title: const Text('Baixar novamente guias já salvas'),
-                  value: downloadSaved,
-                  onChanged: ready && !running
-                      ? (value) {
-                          setState(() => downloadSaved = value ?? false);
-                          changed();
-                        }
-                      : null,
-                ),
-                const SizedBox(height: 20),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: ready && !running ? importRows : null,
-                      icon: const Icon(Icons.upload_file),
-                      label: const Text('Importar CSV / Excel'),
+                      icon: const Icon(Icons.open_in_browser, size: 18),
+                      label: const Text('Abrir Chrome'),
                     ),
-                    OutlinedButton.icon(
-                      onPressed: ready && !running
-                          ? () {
-                              setState(
-                                () => rows.add({
-                                  'cod': '',
-                                  'empresa': '',
-                                  'cnpj': '',
-                                  'fgts': '',
-                                  'consignado': '',
-                                  'total': '',
-                                  'observacoes': '',
-                                  'selected': true,
-                                }),
-                              );
-                              changed();
-                            }
-                          : null,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Adicionar empresa'),
-                    ),
-                    TextButton(
-                      onPressed: ready ? () => export(true) : null,
-                      child: const Text('Baixar modelo'),
-                    ),
-                    TextButton(
-                      onPressed: ready ? () => export(false) : null,
-                      child: const Text('Exportar planilha'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: ready && !running && rows.isNotEmpty
-                          ? removeAllCompanies
-                          : null,
-                      icon: const Icon(Icons.delete_sweep_outlined),
-                      label: const Text('Remover todas'),
-                    ),
-                    FilledButton.icon(
-                      onPressed:
-                          ready && !running && chrome.isNotEmpty ? start : null,
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('Emitir selecionadas'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: ready &&
-                              !running &&
-                              chrome.isNotEmpty &&
-                              rows.any((row) => row['selected'] != false)
-                          ? restartEmission
-                          : null,
-                      icon: const Icon(Icons.restart_alt),
-                      label: const Text('Reiniciar emissão'),
-                    ),
-                    if (running)
-                      OutlinedButton(
-                        onPressed: () => act('pause'),
-                        child: const Text('Pausar'),
-                      ),
-                    if (running)
-                      TextButton(
-                        onPressed: () => act('stop'),
-                        child: const Text('Encerrar lote'),
-                      ),
                   ],
                 ),
+                const SizedBox(height: 18),
+                settingsCard(),
                 const SizedBox(height: 20),
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, size) {
+                      final workspace = Material(
+                        color: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            side: const BorderSide(color: Color(0xffdce3dc))),
+                        clipBehavior: Clip.antiAlias,
+                        child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                            child: table()),
+                      );
+                      if (!running && !paused && log.isEmpty) return workspace;
                       final panel = Material(
+                          borderRadius: BorderRadius.circular(14),
+                          clipBehavior: Clip.antiAlias,
                           color: paused
                               ? const Color(0xffffedcf)
                               : const Color(0xffe8eee7),
                           child: SizedBox(
-                              width: size.maxWidth > 1050 ? 340 : null,
+                              width: size.maxWidth > 1150 ? 310 : null,
                               child: Padding(
                                 padding: const EdgeInsets.all(20),
                                 child: SingleChildScrollView(
@@ -984,19 +1073,19 @@ class _WorkspaceState extends State<Workspace> {
                                   ),
                                 ),
                               )));
-                      if (size.maxWidth > 1050) {
+                      if (size.maxWidth > 1150) {
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Expanded(child: table()),
-                            const SizedBox(width: 24),
+                            Expanded(child: workspace),
+                            const SizedBox(width: 16),
                             panel,
                           ],
                         );
                       }
                       return Column(
                         children: [
-                          Expanded(child: table()),
+                          Expanded(child: workspace),
                           const SizedBox(height: 14),
                           SizedBox(height: 210, child: panel),
                         ],

@@ -40,7 +40,7 @@ O script escolhe Windows automaticamente. Não é necessário instalar Chromium 
 ## Preparar as empresas
 
 1. Informe nome e CNPJ do titular do certificado na interface. O app escolhe **Meu Perfil** se esse CNPJ for o da empresa; nas demais usa **Procurador**.
-2. Clique em **Baixar modelo** para salvar um XLSX ou CSV vazio. Também há [template CSV](templates/empresas.csv) no repositório.
+2. No menu **Planilha**, clique em **Baixar modelo** para salvar um XLSX ou CSV vazio. Também há [template CSV](templates/empresas.csv) no repositório.
 3. Preencha e importe, ou use **Adicionar empresa** e edite na tabela. CNPJs recebem máscara automaticamente. FGTS mensal e consignado aceitam valores em reais com duas casas decimais. Campos vazios valem zero. O total é calculado automaticamente e não pode ser editado.
 
 | Coluna | Conteúdo |
@@ -53,15 +53,15 @@ O script escolhe Windows automaticamente. Não é necessário instalar Chromium 
 | TOTAL | Calculado pelo app como FGTS MENSAL + CONSIGNADO |
 | OBSERVAÇÕES | Notas do operador |
 
-**Remover todas** limpa a tabela após sua confirmação, com o lote parado. As guias salvas, o registro das emissões e as configurações são preservados.
+**Planilha → Remover todas** limpa a tabela após sua confirmação, com o lote parado. As guias salvas, o registro das emissões e as configurações são preservados.
 
 CSV usa UTF-8 e `;`. XLSX usa a primeira aba e primeira linha de cabeçalhos. O app não depende de Google Sheets nem extrai automaticamente os relatórios PDF. A transcrição dos valores deve ser conferida antes do lote.
 
 ## Repetir um lote
 
-Por padrão, o app confere e reaproveita os PDFs já salvos para a mesma empresa e período. Essas empresas aparecem como **Já salva** e são contadas separadamente ao concluir. Para buscar os arquivos outra vez no portal, marque **Baixar novamente guias já salvas** antes de iniciar. O app recupera a guia registrada pela Consulta de Guias, confere o PDF e mantém a proteção contra duplicidade. Uma emissão com resultado incerto também segue pela recuperação.
+Por padrão, o app confere e reaproveita os PDFs já salvos para a mesma empresa e período. Essas empresas aparecem como **Já salva** e são contadas separadamente ao concluir. Para buscar os arquivos outra vez no portal, abra **Opções de emissão**, na seta ao lado do botão principal, e marque **Baixar novamente guias já salvas**. O botão muda para **Baixar selecionadas**. O app recupera a guia registrada pela Consulta de Guias, confere o PDF e mantém a proteção contra duplicidade. Uma emissão com resultado incerto também segue pela recuperação.
 
-**Reiniciar emissão** refaz as etapas no portal para as empresas e o período selecionados, após confirmação. Pode gerar outra guia para débitos já incluídos em uma emissão. Mantém o histórico e os PDFs anteriores; o arquivo recebe também o número da guia no nome. Não ignora divergências. Uma emissão com resultado incerto é recuperada primeiro. Essa escolha vale somente para o lote iniciado pelo botão.
+**Opções de emissão → Reiniciar emissão** refaz as etapas no portal para as empresas e o período selecionados, após confirmação. Pode gerar outra guia para débitos já incluídos em uma emissão. Mantém o histórico e os PDFs anteriores; o arquivo recebe também o número da guia no nome. Não ignora divergências. Uma emissão com resultado incerto é recuperada primeiro. Essa escolha vale somente para o lote iniciado pelo botão.
 
 ## Emitir e acompanhar
 
