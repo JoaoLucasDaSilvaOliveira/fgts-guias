@@ -2,7 +2,16 @@
 
 Emissão assistida de guias do FGTS Digital em uma janela desktop. Importe suas empresas, informe a competência e acompanhe as conferências antes de cada emissão. A interface é Flutter; a navegação no Google Chrome é feita por um motor Python local.
 
-**Emissão e recuperação de guias validadas em lotes reais no Linux.** Ainda não há instaladores. Windows, macOS e a compatibilidade com certificados A1/A3 em cada plataforma precisam de validação. O app emite guias; o pagamento é feito fora dele.
+**Emissão e recuperação de guias validadas em lotes reais no Linux.** Há pacotes portáteis para Linux e Windows na página de releases. Windows, macOS e a compatibilidade com certificados A1/A3 em cada plataforma precisam de validação. O app emite guias; o pagamento é feito fora dele.
+
+## Baixar o aplicativo
+
+Abra [Releases](https://github.com/JoaoLucasDaSilvaOliveira/fgts-guias/releases/latest) e baixe o pacote do seu sistema:
+
+- **Linux x64:** extraia o `.tar.gz` e execute `fgts_guias` dentro da pasta extraída. Em Ubuntu/Debian, instale `libgtk-3-0` se necessário.
+- **Windows x64:** extraia o `.zip` e execute `fgts_guias.exe`. Mantenha as pastas `data`, `engine` e as DLLs junto do executável. Se faltar runtime C++, instale o Microsoft Visual C++ Redistributable x64.
+
+Os pacotes incluem o motor Python. Não é necessário instalar Python ou Flutter para usá-los. Instale o Google Chrome e o software do certificado, quando exigido pelo fabricante. Os executáveis ainda não possuem assinatura digital.
 
 ## Requisitos
 
