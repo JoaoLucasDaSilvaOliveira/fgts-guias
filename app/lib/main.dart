@@ -633,15 +633,20 @@ class _WorkspaceState extends State<Workspace> {
                       child: DropdownButtonFormField<String>(
                           key: ValueKey(browserMode),
                           initialValue: browserMode,
+                          isExpanded: true,
                           decoration: const InputDecoration(
                               labelText: 'Sessão do Chrome'),
                           items: const [
                             DropdownMenuItem(
                                 value: 'managed',
-                                child: Text('Chrome do app (persistente)')),
+                                child: Text('Chrome do app (persistente)',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis)),
                             DropdownMenuItem(
                                 value: 'attach',
-                                child: Text('Chrome já aberto (depuração)'))
+                                child: Text('Chrome já aberto (depuração)',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis))
                           ],
                           onChanged: running
                               ? null

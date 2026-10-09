@@ -22,3 +22,7 @@ Conferir o histórico expandido sem aviso de ListTile; campos com controllers e 
 Experimentar primeiro **Abrir / conectar Chrome**, concluir o login e então iniciar o lote. Conferir que CAPTCHA resolvido e autenticação pendente não são confundidos. Validar os dois modos Chrome, downloads e desconexão do modo externo preservando a janela. Não houve teste real do GOV.BR nesta correção.
 
 Nesta correção, foram feitas somente análise estática Flutter e leitura de sintaxe Python, sem executar testes, build ou emissão. A validação visual e o login GOV.BR permanecem com o operador.
+
+## Correção do overflow no seletor de Chrome
+
+A pedido do operador, o app foi aberto no Linux e o terminal mostrou `RenderFlex overflowed by 30 pixels on the right` no DropdownButtonFormField. O seletor agora expande seu conteúdo na largura disponível e limita o texto a uma linha com reticências. Após recompilar e reabrir o app, o overflow não apareceu no terminal. A inicialização ainda apresenta um aviso nativo ATK (`atk_socket_embed`), sem exceção de layout Dart observada. Não foi feita emissão de guia.

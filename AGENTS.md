@@ -10,4 +10,4 @@ App desktop Flutter com motor Python/Playwright. Use Chrome instalado e um perfi
 
 Nunca resolver CAPTCHA, escolher certificado/PIN, pagar guias ou corrigir valores financeiros silenciosamente. Divergências pausam o lote inteiro. Persistir a intenção antes de emitir; resultado incerto exige recuperação, nunca nova emissão automática. Salvo exige PDF validado no destino, sem sobrescrever guia diferente.
 
-Nesta primeira implementação, o usuário pediu para não executar testes, builds ou emissão real. Aguardar sua validação da interface e autorização para testar uma empresa. Não incluir dados reais, certificados, sessões, PDFs ou planilhas no repositório.
+O usuário autorizou abrir/recompilar o app e acompanhar o terminal para corrigir a interface. Não executar emissão real antes do GREEN da interface e autorização para testar uma empresa. Não incluir dados reais, certificados, sessões, PDFs ou planilhas no repositório.
