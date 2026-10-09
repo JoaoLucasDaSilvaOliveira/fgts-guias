@@ -10,6 +10,7 @@ from datetime import date, timedelta
 from .chrome import ChromeSession
 from .domain import digits, money, reais, safe_filename
 from .files import validate_pdf, guide_due, guide_number
+from .decisions import RetryCompany
 
 BASE = 'https://fgtsdigital.sistema.gov.br/'
 HOME = BASE + 'portal/servicos'
@@ -30,11 +31,13 @@ def chrome_path():
     return next((str(p) for p in candidates if p and Path(p).is_file()), None)
 
 class Portal:
-    def __init__(self, storage, notify, checkpoint, on_closed):
+    def __init__(self, storage, notify, checkpoint, on_closed, decision=None):
         self.store, self.notify, self.checkpoint = storage, notify, checkpoint
         self.context = self.page = None
         self.chrome = ChromeSession(storage.root)
         self.on_closed = on_closed
+        self.decision = decision
+        self.validation_stage = 'FGTS'
         self.observed_browser = None
         self.page_session = None
 
@@ -226,14 +229,25 @@ class Portal:
         result['total'] = result['fgts'] + result['consignado']
         return result
 
-    def compare(self, company, actual, loans=True):
+    async def difference(self, company, scope, expected, found, readback, **context):
+        while expected != found:
+            if not self.decision:
+                raise Attention('Valores divergentes. Revise a planilha e os relatórios antes de retomar.', expected=expected, found=found)
+            await self.decision(company, scope, expected, found, **context)
+            await self.guard()
+            await self.employer(company)
+            current = await readback()
+            if current == found:
+                return current
+            found = current
+        return found
+
+    async def compare(self, company, actual, loans=True):
         expected = {k: company[k] for k in ['fgts', 'consignado', 'total']}
         if not loans:
             expected = {'fgts': company['fgts'], 'consignado': 0, 'total': company['fgts']}
-        if actual != expected:
-            raise Attention('Valores divergentes. Revise a planilha e os relatórios antes de retomar.',
-                            expected=expected, found=actual,
-                            difference={k: actual[k]-expected[k] for k in expected})
+        reader = self.final_summary if self.validation_stage == 'Emissão' else self.summary
+        await self.difference(company, self.validation_stage, expected, actual, reader)
 
     async def check(self, selector, checked):
         control = self.page.locator(selector)
@@ -282,12 +296,14 @@ class Portal:
         await self.guard()
         await self.employer(company)
         candidates = []
+        alternatives = []
         for attempt in range(3):
             await self.click('Pesquisar')
             table = self.page.get_by_role('table').filter(
                 has=self.page.get_by_text('Número da Guia', exact=True))
             await table.wait_for(state='visible')
             candidates = []
+            alternatives = []
             for page_index in range(20):
                 headers = await table.get_by_role('columnheader').all_inner_texts()
                 if not headers:
@@ -309,13 +325,16 @@ class Portal:
                         continue
                     if previous.get('guide') and number != previous['guide']:
                         continue
-                    if previous.get('due') and due != previous['due']:
-                        continue
-                    if money(cells[total_index].strip()) != company['total']:
-                        continue
+                    amount = money(cells[total_index].strip())
                     if 'Aguardando Pagamento' not in ' '.join(cells) or 'MENSAL' not in ' '.join(cells):
                         continue
-                    candidates.append((number, due))
+                    if previous.get('guide') or due == previous.get('due') or amount == company['total']:
+                        alternatives.append((number, due, amount))
+                    if previous.get('due') and due != previous['due']:
+                        continue
+                    if amount != company['total']:
+                        continue
+                    candidates.append((number, due, amount))
                 next_page = self.page.get_by_role('button', name='Página seguinte', exact=True)
                 if not await next_page.count() or await next_page.is_disabled():
                     break
@@ -328,9 +347,11 @@ class Portal:
                 break
             if attempt < 2:
                 await asyncio.sleep(2)
+        if not candidates and len(set(alternatives)) == 1:
+            candidates = alternatives
         if len(candidates) != 1:
             raise Attention('A Consulta de Guias não identificou uma única guia pelo vencimento e valor. Confira no Chrome.', recovery=True)
-        number, due = candidates[0]
+        number, due, amount = candidates[0]
         # Search again to return to the first page, then locate the recorded number.
         await self.click('Pesquisar')
         for _ in range(20):
@@ -344,6 +365,15 @@ class Portal:
             await self.page.get_by_role('progressbar', name='Carregando').wait_for(state='hidden', timeout=60000)
         else:
             raise Attention('Não foi possível localizar novamente a guia.', recovery=True)
+        async def read_candidate():
+            cells = await row.get_by_role('cell').all_inner_texts()
+            if cells[number_index].strip() != number:
+                raise Attention('A guia mudou na consulta.', recovery=True)
+            return {'due':cells[due_index].strip(), 'total':money(cells[total_index].strip())}
+        observed = await read_candidate()
+        expected = {'due':previous.get('due') or due, 'total':company['total']}
+        result = await self.difference(company, 'Recuperação da guia', expected, observed, read_candidate, guide=number)
+        due = result['due']
         self.store.save_job(key, {'state':'recovering', 'guide':number, 'due':due,
             'company':company, 'initial':settings['initial'], 'final':settings['final']})
         await row.get_by_role('button', name='Abrir menu de opções de impressão', exact=True).click()
@@ -352,8 +382,9 @@ class Portal:
         self.notify('progress', company=company['cnpj'], message='Consulta de Guias · Baixando a guia emitida…')
         try:
             download, path = await self.chrome.download(self.page, print_guide.click)
-            validate_pdf(path, company, settings['initial'], settings['final'], due, number)
             await self.save_download(download, company, settings, due, number)
+        except RetryCompany:
+            raise
         except Exception as exc:
             raise Attention('A guia consultada não foi salva: ' + str(exc), recovery=True) from exc
 
@@ -368,7 +399,7 @@ class Portal:
                 raise Attention('Os valores importados mudaram após a emissão. Confira a guia existente.', recovery=True)
             path = Path(previous['path'])
             try:
-                validate_pdf(path, company, initial, final, previous['due'], previous['guide'])
+                validate_pdf(path, previous.get('verified_company', company), initial, final, previous['due'], previous['guide'])
             except Exception as exc:
                 if path.exists():
                     raise Attention('O PDF salvo precisa de revisão: ' + str(exc), recovery=True)
@@ -387,6 +418,7 @@ class Portal:
         await self.page.goto(GUIDE)
         await self.guard()
         await self.employer(company)
+        self.validation_stage = 'FGTS'
         self.notify('progress', company=company['cnpj'], message='1 de 4 · Conferindo FGTS')
         body = await self.text()
         if 'Não há débitos de interesse' in body:
@@ -400,7 +432,7 @@ class Portal:
                 if value not in body:
                     raise Attention('Confirme a competência do progresso salvo no Chrome antes de continuar.')
             actual = await self.summary()
-            self.compare(company, actual, loans=actual['consignado'] != 0)
+            await self.compare(company, actual, loans=actual['consignado'] != 0)
         else:
             await self.periods(initial, final)
             for selector, checked in [('#debitos-mensal', True), ('#debitos-rescisorios', False), ('#processo-trabalhista', False)]:
@@ -410,12 +442,13 @@ class Portal:
             if not await self.page.get_by_text('Resumo dos débitos adicionados à guia', exact=True).count():
                 await self.check('#selecionar-todos', True)
                 await self.click('Adicionar à guia')
-                self.compare(company, await self.summary(), loans=False)
+                await self.compare(company, await self.summary(), loans=False)
             else:
                 actual = await self.summary()
-                self.compare(company, actual, loans=actual['consignado'] != 0)
+                await self.compare(company, actual, loans=actual['consignado'] != 0)
         await self.click('Avançar')
         await self.step(2)
+        self.validation_stage = 'Consignados'
         self.notify('progress', company=company['cnpj'], message='2 de 4 · Conferindo consignados')
         actual = await self.summary()
         if actual != {k: company[k] for k in ['fgts','consignado','total']}:
@@ -423,9 +456,10 @@ class Portal:
             if await self.search(company, settings):
                 return
             actual = await self.summary()
-        self.compare(company, actual)
+        await self.compare(company, actual)
         await self.click('Avançar')
         await self.step(3)
+        self.validation_stage = 'Vencimento'
         self.notify('progress', company=company['cnpj'], message='3 de 4 · Conferindo vencimento')
         field = self.page.get_by_role('textbox', name=re.compile('Vencimento da Guia'))
         await expect(field).to_have_value(re.compile(r'^\d{2}/\d{2}/\d{4}$'), timeout=15000)
@@ -435,13 +469,19 @@ class Portal:
             due = (date.today() + timedelta(days=1)).strftime('%d/%m/%Y')
             await field.fill(due)
             await field.press('Tab')
-        if await field.input_value() != due:
-            raise Attention('O portal não confirmou o vencimento solicitado. Confira a data no Chrome.')
-        self.compare(company, await self.summary())
+        async def read_due():
+            value = await field.input_value()
+            from datetime import datetime
+            datetime.strptime(value, '%d/%m/%Y')
+            return {'due':value}
+        result = await self.difference(company, 'Vencimento', {'due':due}, await read_due(), read_due)
+        due = result['due']
+        await self.compare(company, await self.summary())
         await self.click('Avançar')
         await self.step(4)
+        self.validation_stage = 'Emissão'
         self.notify('progress', company=company['cnpj'], message='4 de 4 · Conferindo e emitindo')
-        self.compare(company, await self.final_summary())
+        await self.compare(company, await self.final_summary())
         await self.guard()
         await self.employer(company)
         self.store.save_job(key, {'state':'issuing', 'due':due, 'company':company, 'initial':initial, 'final':final})
@@ -481,11 +521,27 @@ class Portal:
         try:
             download, path = await self.chrome.download(self.page, links.first.click)
             due = guide_due(path)
-            validate_pdf(path, company, settings['initial'], settings['final'], due, number)
             await self.save_download(download, company, settings, due, number)
+        except RetryCompany:
+            raise
         except Exception as exc:
             raise Attention('A guia existente não foi salva: ' + str(exc), recovery=True) from exc
         await dialog.get_by_role('button', name='Fechar', exact=True).click()
+
+    async def verify_download(self, path, company, settings, due, number):
+        from .files import pdf_values
+        actual = pdf_values(path)
+        verified = {**company, **{k:actual[k] for k in ['fgts','consignado','total']}}
+        # Identity, guide number, period and valid PDF remain mandatory before any acceptance.
+        validate_pdf(path, verified, settings['initial'], settings['final'], actual['due'], number)
+        expected = {**{k:company[k] for k in ['fgts','consignado','total']}, 'due':due}
+        async def read_pdf():
+            values = pdf_values(path)
+            validate_pdf(path, {**company, **{k:values[k] for k in ['fgts','consignado','total']}},
+                         settings['initial'], settings['final'], values['due'], number)
+            return values
+        accepted = await self.difference(company, 'Conferência do PDF', expected, actual, read_pdf, guide=number)
+        return {**company, **{k:accepted[k] for k in ['fgts','consignado','total']}}, accepted['due']
 
     async def save_download(self, download, company, settings, due, number):
         key = self.store.job_key(company, settings['initial'], settings['final'])
@@ -500,12 +556,15 @@ class Portal:
         self.store.save_job(key, job)
         await download.save_as(str(temp))
         try:
-            validate_pdf(temp, company, settings['initial'], settings['final'], due, number)
+            verified, due = await self.verify_download(temp, company, settings, due, number)
+            job.update(verified_company=verified, due=due)
             if target.exists():
-                validate_pdf(target, company, settings['initial'], settings['final'], due, number)
+                validate_pdf(target, verified, settings['initial'], settings['final'], due, number)
                 temp.unlink()
             else:
                 temp.rename(target)
+        except RetryCompany:
+            raise
         except Exception as exc:
             raise Attention('PDF baixado, mas não salvo como concluído: ' + str(exc), recovery=True, temporary=str(temp)) from exc
         job.update(state='saved', path=str(target))

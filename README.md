@@ -68,6 +68,8 @@ CSV usa UTF-8 e `;`. XLSX usa a primeira aba e primeira linha de cabeçalhos. O 
 
 **Não há débitos de interesse:** se o portal exibir essa mensagem para a empresa confirmada, o app registra o motivo e segue para a próxima. Pode ser MEI ou ausência de eventos enviados; o app não altera os valores importados. Ausência de itens na pesquisa e divergências financeiras continuam exigindo atenção.
 
+**Aceitar divergência:** aparece junto a **Retomar** quando o app conseguiu identificar uma diferença específica de valor ou vencimento. A tela mostra esperado, encontrado, etapa e número da guia quando disponível. A aceitação libera somente aquela conferência uma vez, não altera a planilha e fica registrada localmente. Outra etapa ou dados diferentes exigem nova decisão. **Retomar** descarta a decisão pendente e confere novamente. Falhas de autenticação, empresa/competência incorreta, PDF inválido, várias guias candidatas ou leitura desconhecida não oferecem bypass.
+
 **Fechar Chrome durante o lote:** encerra imediatamente o lote, inclusive quando pausado. O app não reabre a janela nem prossegue para outra empresa. Emissões solicitadas permanecem registradas para recuperação.
 
 **Trocar certificado:** pause e clique em **Fechar Chrome para trocar certificado**. O botão fecha todo o Chrome controlado pelo app; ao retomar, entre novamente com o titular configurado. Apenas fechar uma aba não troca o certificado.

@@ -350,17 +350,23 @@ class _WorkspaceState extends State<Workspace> {
         DataColumn(label: Text('Diferença')),
       ],
       rows: [
-        for (final entry in {
-          'fgts': 'FGTS',
-          'consignado': 'Consignado',
-          'total': 'Total',
-        }.entries)
+        for (final key in (expected as Map).keys)
           DataRow(
             cells: [
-              DataCell(Text(entry.value)),
-              DataCell(Text(currency(expected[entry.key]))),
-              DataCell(Text(currency(found[entry.key]))),
-              DataCell(Text(currency(diff[entry.key]))),
+              DataCell(Text({
+                    'fgts': 'FGTS',
+                    'consignado': 'Consignado',
+                    'total': 'Total',
+                    'due': 'Vencimento',
+                  }[key] ??
+                  key.toString())),
+              DataCell(Text(expected[key] is num
+                  ? currency(expected[key])
+                  : expected[key].toString())),
+              DataCell(Text(found[key] is num
+                  ? currency(found[key])
+                  : found[key].toString())),
+              DataCell(Text(diff?[key] is num ? currency(diff[key]) : '—')),
             ],
           ),
       ],
@@ -751,6 +757,14 @@ class _WorkspaceState extends State<Workspace> {
                                           child: Text(
                                               'CNPJ: ${maskCnpj(attention!['company'].toString())}'),
                                         ),
+                                      if (attention?['guide'] != null)
+                                        Text('Guia: ${attention!['guide']}'),
+                                      if (attention?['decision_id'] != null)
+                                        const Padding(
+                                          padding: EdgeInsets.only(top: 12),
+                                          child: Text(
+                                              'Aceitar libera somente esta conferência, uma vez. Outras divergências continuam bloqueando; a planilha não é alterada.'),
+                                        ),
                                       if (attention?['expected'] != null)
                                         SingleChildScrollView(
                                           scrollDirection: Axis.horizontal,
@@ -770,6 +784,17 @@ class _WorkspaceState extends State<Workspace> {
                                               onPressed: () => act('resume'),
                                               child: const Text('Retomar'),
                                             ),
+                                            if (attention?['decision_id'] !=
+                                                null)
+                                              FilledButton.tonal(
+                                                onPressed: () =>
+                                                    act('accept_difference', {
+                                                  'decision_id':
+                                                      attention!['decision_id'],
+                                                }),
+                                                child: const Text(
+                                                    'Aceitar divergência'),
+                                              ),
                                             OutlinedButton(
                                               onPressed: () => act('skip'),
                                               child:

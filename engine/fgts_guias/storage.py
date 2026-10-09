@@ -10,6 +10,7 @@ class Storage:
         self.db = sqlite3.connect(self.root / 'local.sqlite3')
         self.db.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS jobs (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+        self.db.execute('CREATE TABLE IF NOT EXISTS decisions (id TEXT PRIMARY KEY, value TEXT NOT NULL)')
         self.db.commit()
 
     def get(self, key, default=None):
@@ -29,4 +30,8 @@ class Storage:
 
     def save_job(self, key, value):
         self.db.execute('INSERT OR REPLACE INTO jobs VALUES (?,?)', (key, json.dumps(value)))
+        self.db.commit()
+
+    def record_decision(self, value):
+        self.db.execute('INSERT INTO decisions VALUES (?,?)', (value['id'], json.dumps(value)))
         self.db.commit()

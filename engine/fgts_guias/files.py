@@ -91,6 +91,21 @@ def guide_due(path):
         raise ValueError('Vencimento da guia existente não identificado no PDF')
     return found.group(1)
 
+def pdf_values(path):
+    text = '\n'.join(page.extract_text() or '' for page in PdfReader(path).pages)
+    values = {}
+    for label, key in [('Total FGTS', 'fgts'), ('Total Consignado', 'consignado')]:
+        found = re.findall(re.escape(label) + r':\s*([\d.]+,\d{2})', text)
+        amounts = {money(value) for value in found}
+        if key == 'consignado' and not amounts and 'Não há informações de recolhimentos do Consignado' in text:
+            amounts = {0}
+        if len(amounts) != 1:
+            raise ValueError('Total do PDF não identificado de forma única: ' + label)
+        values[key] = amounts.pop()
+    values['total'] = values['fgts'] + values['consignado']
+    values['due'] = guide_due(path)
+    return values
+
 def validate_pdf(path, company, initial, final, due, guide):
     if not re.fullmatch(r'\d{10,30}-\d', str(guide)):
         raise ValueError('Número da guia inválido')

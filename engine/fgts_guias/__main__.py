@@ -5,10 +5,13 @@ from .storage import Storage
 from .domain import normalize_row, period, valid_cnpj, digits
 from .files import read_table, write_table
 from .browser import Portal, chrome_path
+from .decisions import Decisions, RetryCompany
 
 class Engine:
     def __init__(self):
         self.store = Storage()
+        self.decisions = Decisions(self.store)
+        self.batch_settings = None
         self.gate = asyncio.Event()
         self.gate.set()
         self.task = None
@@ -16,7 +19,7 @@ class Engine:
         self.current = None
         self.browser_finished = False
         self.auth_watcher = None
-        self.portal = Portal(self.store, self.event, self.checkpoint, self.browser_closed)
+        self.portal = Portal(self.store, self.event, self.checkpoint, self.browser_closed, self.decision)
     def browser_closed(self):
         if self.task and not self.task.done() and not self.browser_finished:
             self.browser_finished = True
@@ -47,7 +50,24 @@ class Engine:
         except Exception as exc:
             self.event('diagnostic', message='Retomada automática indisponível; use Retomar: ' + str(exc))
 
+    async def decision(self, company, scope, expected, found, **context):
+        settings = self.batch_settings
+        descriptor, future = self.decisions.create(company, {
+            'scope':scope, 'initial':settings['initial'], 'final':settings['final'], **context}, expected, found)
+        self.gate.clear()
+        self.event('attention', company=company['cnpj'], message='Divergência em ' + scope + '. Confira antes de aceitar.',
+            decision_id=descriptor['id'], expected=expected, found=found,
+            difference={k:found[k]-v for k,v in expected.items() if isinstance(v, int) and isinstance(found.get(k), int)},
+            scope=scope, guide=context.get('guide'))
+        try:
+            await self.portal.visibility(True)
+            if not await future:
+                raise RetryCompany()
+        finally:
+            self.decisions.clear()
+
     async def batch(self, rows, settings):
+        self.batch_settings = settings
         try:
             for source in rows:
                 self.current, self.skip = source, False
@@ -58,6 +78,11 @@ class Engine:
                         source = next((r for r in workspace.get('rows', []) if digits(r.get('cnpj')) == digits(self.current['cnpj'])), self.current)
                         await self.portal.run(normalize_row(source), settings)
                         break
+                    except RetryCompany:
+                        if self.skip:
+                            self.event('skipped', company=digits(self.current['cnpj']))
+                            break
+                        continue
                     except asyncio.CancelledError:
                         raise
                     except Exception as exc:
@@ -89,6 +114,8 @@ class Engine:
                 self.event('finished', message='Lote interrompido. Emissões solicitadas permanecem registradas.')
         finally:
             self.cancel_auth_watcher()
+            self.decisions.clear()
+            self.batch_settings = None
             self.current = None
     async def command(self, name, data):
         if name == 'bootstrap':
@@ -126,20 +153,37 @@ class Engine:
             self.gate.set()
             self.task = asyncio.create_task(self.batch(rows, dict(settings)))
         elif name == 'pause':
+            self.decisions.retry()
             self.cancel_auth_watcher()
             self.gate.clear()
             await self.portal.visibility(True)
             self.event('attention', message='Pausado. A ação atual será concluída antes da pausa.')
+        elif name == 'accept_difference':
+            if not self.current or self.gate.is_set() or not self.decisions.pending:
+                raise ValueError('Não há divergência específica aguardando aceitação')
+            workspace = self.store.get('workspace', {})
+            source = next((r for r in workspace.get('rows', []) if digits(r.get('cnpj')) == digits(self.current['cnpj'])), self.current)
+            await self.portal.guard(checkpoint=False)
+            await self.portal.visibility(False)
+            try:
+                self.decisions.accept(data.get('decision_id'), normalize_row(source))
+            except Exception:
+                await self.portal.visibility(True)
+                raise
+            self.gate.set()
+            self.event('progress', message='Decisão específica aceita uma vez. Continuando as conferências…')
         elif name == 'resume':
             await self.portal.guard(checkpoint=False)
             await self.portal.visibility(False)
             self.cancel_auth_watcher()
+            self.decisions.retry()
             self.gate.set()
             self.event('progress', message='Retomando conferência…')
         elif name == 'skip':
             self.cancel_auth_watcher()
             await self.portal.visibility(False)
             self.skip = True
+            self.decisions.retry()
             self.gate.set()
         elif name == 'stop':
             if self.task and not self.task.done():
