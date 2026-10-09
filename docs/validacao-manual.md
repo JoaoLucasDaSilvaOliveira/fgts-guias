@@ -83,3 +83,14 @@ Testado o pacote distribuído em um computador Windows do operador, por SSH e ta
 O app abriu sua janela FGTS Guias na sessão gráfica, com o motor em execução. Captura local da janela confirmou a interface renderizada, tabela e controles visíveis, sem overflow observado nessa tela. O terminal apresentou somente a informação de inicialização do renderizador Impeller, sem novas exceções. A captura, os dados do operador e as credenciais não foram publicados. Tarefa e scripts temporários foram removidos; o app ficou aberto para o operador.
 
 A tentativa de isolar dados somente por APPDATA/LOCALAPPDATA não altera o diretório nativo retornado por platformdirs no Windows. A abertura final usou o diretório normal do app, sem alterar empresas ou configurações e sem iniciar lote. Não houve login com certificado, CAPTCHA, emissão, download de guias, validação de divergências ou pagamento. Esses fluxos financeiros e a compatibilidade A1/A3 no Windows continuam pendentes de teste autorizado.
+
+
+## Motor pelo código no Windows e comunicação UTF-8
+
+Ao iniciar o lote pela interface v0.2.0 no Windows, o motor congelado transmitiu mensagens com a página de códigos local, mas a interface esperava UTF-8. Surgiram FormatException no decodificador Dart e o acompanhamento ficou em Iniciando o lote, embora o motor tivesse chegado ao login. O lote foi interrompido antes de qualquer emissão.
+
+Corrigida a configuração explícita de stdin/stdout/stderr em UTF-8. O teste de regressão simula streams cp1252 e confirma entrada com nomes acentuados, eventos de progresso e diagnósticos em UTF-8. O empacotamento passou a verificar uma validação real com acento. A primeira execução do teste no Windows revelou apenas uma diferença CRLF/LF na asserção, também corrigida.
+
+Por preferência do operador, não se continuou entregando pacotes a cada erro. Preparados Python 3.12 e ambiente virtual no computador Windows, cópia do código do projeto e interface compilada sem motor congelado ao lado. A interface usa o ambiente virtual no PATH e inicia python -u -m fgts_guias, com diretório de trabalho do motor localizado a partir de app/. As edições são feitas no computador de desenvolvimento e sincronizadas pelo SSH. Não foi instalado o ambiente completo Flutter/C++ por limitação de espaço.
+
+Os 23 testes do motor passaram no Windows. A interface abriu usando o motor pelo código e Baixar selecionadas foi acionado novamente: o acompanhamento identificou a empresa e exibiu corretamente a mensagem acentuada de autenticação. O lote ficou pausado aguardando login do operador com certificado. Nenhuma exceção de decodificação ocorreu nessa retomada. Certificado, CAPTCHA e emissão continuam pendentes nesta etapa. A sessão normal do app e seus dados foram preservados.
