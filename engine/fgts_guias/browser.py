@@ -1,4 +1,5 @@
 """Portal adapter. All selectors refer to visible controls, never financial APIs."""
+import asyncio
 import os
 import re
 import shutil
@@ -13,6 +14,7 @@ from .files import validate_pdf, guide_due, guide_number
 BASE = 'https://fgtsdigital.sistema.gov.br/'
 HOME = BASE + 'portal/servicos'
 GUIDE = BASE + 'cobranca/#/gestao-guias/emissao-guia-parametrizada'
+CONSULT = BASE + 'cobranca/#/gestao-guias/consulta-guias'
 
 class Attention(Exception):
     def __init__(self, message, **details):
@@ -248,15 +250,88 @@ class Portal:
                     raise Attention('Símbolo de informação na tabela não reconhecido. Confira se existe guia aguardando pagamento.', recovery=True)
 
     async def recover_from_portal(self, company, settings):
+        """Read-only lookup after uncertain issuance; never repeat Emitir Guia."""
+        key = self.store.job_key(company, settings['initial'], settings['final'])
+        previous = self.store.job(key) or {}
         await self.profile(company, settings)
-        await self.page.goto(GUIDE)
+        await self.page.goto(CONSULT)
         await self.guard()
         await self.employer(company)
-        await self.periods(settings['initial'], settings['final'])
-        for selector, checked in [('#debitos-mensal', True), ('#debitos-rescisorios', False), ('#processo-trabalhista', False)]:
-            await self.check(selector, checked)
-        if not await self.search(company, settings):
-            raise Attention('A guia registrada não foi encontrada. Recupere a guia existente; uma nova emissão não será solicitada.', recovery=True)
+        candidates = []
+        for attempt in range(3):
+            await self.click('Pesquisar')
+            table = self.page.get_by_role('table').filter(
+                has=self.page.get_by_text('Número da Guia', exact=True))
+            await table.wait_for(state='visible')
+            candidates = []
+            for page_index in range(20):
+                headers = await table.get_by_role('columnheader').all_inner_texts()
+                if not headers:
+                    headers = await table.get_by_role('row').first.get_by_role('cell').all_inner_texts()
+                def column(label):
+                    matches = [i for i, value in enumerate(headers) if label in value]
+                    if len(matches) != 1:
+                        raise Attention('Colunas da Consulta de Guias não reconhecidas.', recovery=True)
+                    return matches[0]
+                number_index, due_index, total_index = [column(label) for label in
+                    ['Número da Guia', 'Vencimento da Guia', 'Valor Total']]
+                for row in await table.get_by_role('row').all():
+                    cells = await row.get_by_role('cell').all_inner_texts()
+                    if len(cells) <= max(number_index, due_index, total_index):
+                        continue
+                    number = cells[number_index].strip()
+                    due = cells[due_index].strip()
+                    if not re.fullmatch(r'\d{10,30}-\d', number):
+                        continue
+                    if previous.get('guide') and number != previous['guide']:
+                        continue
+                    if previous.get('due') and due != previous['due']:
+                        continue
+                    if money(cells[total_index].strip()) != company['total']:
+                        continue
+                    if 'Aguardando Pagamento' not in ' '.join(cells) or 'MENSAL' not in ' '.join(cells):
+                        continue
+                    candidates.append((number, due))
+                next_page = self.page.get_by_role('button', name='Página seguinte', exact=True)
+                if not await next_page.count() or await next_page.is_disabled():
+                    break
+                await next_page.click()
+                await self.page.get_by_role('progressbar', name='Carregando').wait_for(state='hidden', timeout=60000)
+            else:
+                raise Attention('Consulta com muitas páginas. Identifique a guia com o operador.', recovery=True)
+            candidates = list(dict.fromkeys(candidates))
+            if candidates:
+                break
+            if attempt < 2:
+                await asyncio.sleep(2)
+        if len(candidates) != 1:
+            raise Attention('A Consulta de Guias não identificou uma única guia pelo vencimento e valor. Confira no Chrome.', recovery=True)
+        number, due = candidates[0]
+        # Search again to return to the first page, then locate the recorded number.
+        await self.click('Pesquisar')
+        for _ in range(20):
+            row = table.get_by_role('row').filter(has=self.page.get_by_role('cell', name=number, exact=True))
+            if await row.count() == 1:
+                break
+            next_page = self.page.get_by_role('button', name='Página seguinte', exact=True)
+            if not await next_page.count() or await next_page.is_disabled():
+                raise Attention('A guia mudou na consulta. Confira no Chrome.', recovery=True)
+            await next_page.click()
+            await self.page.get_by_role('progressbar', name='Carregando').wait_for(state='hidden', timeout=60000)
+        else:
+            raise Attention('Não foi possível localizar novamente a guia.', recovery=True)
+        self.store.save_job(key, {'state':'recovering', 'guide':number, 'due':due,
+            'company':company, 'initial':settings['initial'], 'final':settings['final']})
+        await row.get_by_role('button', name='Abrir menu de opções de impressão', exact=True).click()
+        print_guide = self.page.get_by_text('Imprimir guia', exact=True)
+        await print_guide.wait_for(state='visible')
+        self.notify('progress', company=company['cnpj'], message='Consulta de Guias · Baixando a guia emitida…')
+        try:
+            download, path = await self.chrome.download(self.page, print_guide.click)
+            validate_pdf(path, company, settings['initial'], settings['final'], due, number)
+            await self.save_download(download, company, settings, due, number)
+        except Exception as exc:
+            raise Attention('A guia consultada não foi salva: ' + str(exc), recovery=True) from exc
 
     async def run(self, company, settings):
         await self.launch(settings)
@@ -290,6 +365,12 @@ class Portal:
         await self.employer(company)
         self.notify('progress', company=company['cnpj'], message='1 de 4 · Conferindo FGTS')
         body = await self.text()
+        if 'Não há débitos de interesse' in body:
+            reason = 'Não há débitos de interesse no portal; verificar MEI ou envio dos eventos.'
+            self.store.save_job(key, {'state':'no_debts', 'reason':reason, 'company':company,
+                                     'initial':initial, 'final':final})
+            self.notify('skipped', company=company['cnpj'], message=company['empresa'] + ': ' + reason)
+            return
         if 'Há um ou mais débitos já adicionados' in body:
             for value in {initial, final}:
                 if value not in body:
@@ -340,7 +421,7 @@ class Portal:
         await self.employer(company)
         self.store.save_job(key, {'state':'issuing', 'due':due, 'company':company, 'initial':initial, 'final':final})
         try:
-            download, downloaded_path = await self.chrome.download(self.page, lambda: self.click('Emitir Guia'))
+            download, downloaded_path = await self.chrome.download(self.page, lambda: self.click('Emitir Guia'), timeout=5)
         except Exception:
             self.notify('progress', company=company['cnpj'], message='Download não confirmado. Recuperando a guia emitida…')
             await self.recover_from_portal(company, settings)

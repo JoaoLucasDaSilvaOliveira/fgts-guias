@@ -15,6 +15,8 @@ Estas notas descrevem o fluxo ensinado pelo operador. Não são um parecer sobre
 
 Competências Inicial e Final vêm do operador, em MM/AAAA. Tipo de débito: somente **Mensal**. Desmarcar **Sem guia emitida** e **Pesquisar**. Essa opção marcada esconde todos ou parte dos débitos com guia emitida; vale também para consignados. Sempre repetir a busca desmarcada antes de declarar ausência ou divergência.
 
+Se a tela inicial da emissão mostrar explicitamente **Não há débitos de interesse** para o empregador confirmado, registrar a ocorrência no diário local e seguir à próxima empresa, conforme orientação do operador. Pode ser MEI ou ausência de eventos enviados; não inferir qual causa ocorreu nem corrigir o valor importado. Uma consulta sem itens ou uma divergência de valores continua pausando o lote. Emissões com intenção já registrada continuam exigindo recuperação.
+
 O símbolo azul, com texto **Existem guias aguardando pagamento para este débito**, indica guia pendente, não dívida paga nem autorização para duplicar emissão. Reimprimir automaticamente uma guia única e validar o PDF; ambiguidades pausam o lote.
 
 Checkbox do cabeçalho seleciona todos os débitos encontrados (inclusive além da página visível). **Adicionar à guia** exibe **Resumo dos débitos adicionados à guia**. Conferir **Total FGTS** contra FGTS MENSAL importado. Nesta etapa nova, **Total da Guia** deve ser o FGTS, sem consignados. Só então **Avançar**.
@@ -35,7 +37,7 @@ Manter vencimento válido sugerido pelo portal. O operador descreveu vencimento 
 
 Conferir total final com TOTAL. Registrar intenção local antes de **Emitir Guia**. Capturar download iniciado por esse clique, não os PDFs de detalhamento. Registrar número da guia. Salvar primeiro temporário no destino escolhido; conferir CNPJ, competências, vencimento, número e total no PDF. Nome final: EMPRESA.pdf com caracteres incompatíveis substituídos. Nunca sobrescrever outro documento. Guia emitida não significa PDF salvo.
 
-Timeout ou resultado incerto: recuperar, nunca emitir outra automaticamente. Número emitido pode permitir reimpressão. **CONSULTA DE GUIAS** existe para recuperação; sua navegação detalhada não foi demonstrada, a reimpressão pelo indicador azul dos débitos é automática quando existe uma única guia. A consulta continua como alternativa manual, usando **Recuperar PDF**. PDF com formato não reconhecido permanece pendente.
+Timeout ou resultado incerto: recuperar, nunca emitir outra automaticamente. Número emitido pode permitir reimpressão. **CONSULTA DE GUIAS** recupera automaticamente emissões cujo download ultrapassa 5 segundos. A reimpressão pelo indicador azul dos débitos também é automática quando existe uma única guia. **Recuperar PDF** permanece disponível para intervenção manual. PDF com formato não reconhecido permanece pendente.
 
 Após concluir: logo **FGTS Digital** retorna `/portal/servicos`; **Trocar Perfil** começa a próxima empresa.
 
@@ -56,3 +58,13 @@ As checkboxes da tabela usam rótulos sobre o input, inclusive **Selecionar todo
 Esperar a etapa ativa do breadcrumb e o indicador de carregamento. A troca de perfil mantém a URL de serviços: esperar fechar o diálogo e aparecer o CNPJ esperado, pois esperar somente a URL pode ler o empregador anterior. Resumo persistido também pode existir sem o aviso textual; conferir antes de tentar selecionar/adicionar novamente.
 
 O PDF emitido fornece o número no campo **Identificador**; não depender da exposição desse número na tela. Se não houver download confirmado após emissão, executar a recuperação da guia existente, sem novo clique em Emitir Guia. O PDF sem consignado declara explicitamente **Não há informações de recolhimentos do Consignado**: aceitar ausência do total de consignado somente com essa mensagem e valor esperado zero.
+
+## Fallback pela Consulta de Guias
+
+O operador definiu novo limite: se o download não chegar em **5 segundos** após solicitar emissão, iniciar fallback para recuperar a guia emitida. Não clicar novamente em Emitir Guia. O limite cobre o clique e a espera pelo download; a reimpressão tem prazo próprio de até 60 segundos.
+
+Caminho observado: **GESTÃO DE GUIAS** → **CONSULTA DE GUIAS** abre `https://fgtsdigital.sistema.gov.br/cobranca/#/gestao-guias/consulta-guias`. A primeira tela apresenta Situação da Guia, Número da Guia, Data do Pagamento da Guia, Inicial/Final, Competência de Apuração (últimas 3/6/12 competências ou período definido, máximo de 12 meses), filtro de CPFs e Pesquisar. Por padrão, não inclui guias expiradas. O operador orientou manter os filtros padrão e clicar somente em **Pesquisar**. A guia recém-emitida costuma ser a primeira, mas a escolha precisa conferir **Vencimento da Guia** e **Valor Total** com os valores esperados (e o número, quando registrado). Se houver mais de uma candidata correspondente, pausar para identificar a correta; não inferir apenas pela posição na lista.
+
+Na linha escolhida, o ícone de três pontos tem nome acessível **Abrir menu de opções de impressão**. Seu menu disponibiliza **Imprimir guia**, **Imprimir relatório FGTS em PDF** e **Imprimir relatório FGTS em CSV**. Usar exclusivamente **Imprimir guia**. O DOM expõe essa ação como texto em um elemento sem papel link reconhecido pelo Playwright: selecionar pelo texto exato, escopando ao menu aberto. O clique foi observado, com indicador Carregando e fechamento do menu; o download não foi confirmado pela ferramenta do browser interno nesta rodada. Na integração, exigir arquivo concluído e validação do PDF, sem tratar o clique como sucesso nem emitir novamente.
+
+Fluxo implementado: download de emissão excedeu 5 segundos → abrir Consulta de Guias no mesmo empregador → Pesquisar → localizar por vencimento/valor e número disponível → três pontos da linha → Imprimir guia → validar e salvar com nome/pasta configurados. O motor mantém os filtros padrão, examina as páginas e exige uma candidata única. Se o portal ainda não listar a guia, repete somente Pesquisar até três vezes, sem emitir novamente. Validado em lote real no Chrome do app: quatro emissões excederam o limite, foram localizadas na consulta, reimpressas, validadas e salvas automaticamente.

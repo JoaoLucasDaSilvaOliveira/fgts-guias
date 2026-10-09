@@ -70,7 +70,7 @@ class ChromeSession:
             await self.close()
             raise
 
-    async def download(self, page, action):
+    async def download(self, page, action, timeout=60):
         """Capture Chrome's completed download for this page, including CDP sessions."""
         session = await self.context.new_cdp_session(page)
         tree = (await session.send('Page.getFrameTree'))['frameTree']
@@ -94,8 +94,10 @@ class ChromeSession:
         self.cdp.on('Browser.downloadWillBegin', begin)
         self.cdp.on('Browser.downloadProgress', progress)
         try:
-            await action()
-            path = await asyncio.wait_for(future, timeout=60)
+            async def capture():
+                await action()
+                return await future
+            path = await asyncio.wait_for(capture(), timeout=timeout)
             if not path.is_file():
                 raise ValueError('Chrome não disponibilizou o arquivo baixado')
             class Completed:
