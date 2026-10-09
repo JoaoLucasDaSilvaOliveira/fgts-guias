@@ -122,9 +122,9 @@ class _WorkspaceState extends State<Workspace> {
                 states.values.where((value) => value == 'skipped').length;
             final results = [
               if (saved > 0)
-                '$saved ${saved == 1 ? 'guia baixada' : 'guias baixadas'}',
+                '$saved ${saved == 1 ? 'guia salva' : 'guias salvas'}',
               if (reused > 0)
-                '$reused ${reused == 1 ? 'guia já salva' : 'guias já salvas'}',
+                '$reused ${reused == 1 ? 'guia reutilizada' : 'guias reutilizadas'}',
               if (skipped > 0)
                 '$skipped ${skipped == 1 ? 'empresa ignorada' : 'empresas ignoradas'}',
             ];
