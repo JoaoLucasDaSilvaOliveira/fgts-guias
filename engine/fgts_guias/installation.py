@@ -12,8 +12,8 @@ from .version import VERSION
 APP_ID = 'org.fgtsguias.desktop'
 
 def desktop_quote(value):
-    if '\n' in value or '\r' in value or '=' in value:
-        raise ValueError('Escolha um caminho sem quebras de linha ou sinal de igual para registrar o atalho.')
+    if any(char in value for char in ('\n', '\r', '=', '%')):
+        raise ValueError('Escolha um caminho sem quebras de linha, % ou = para registrar o atalho.')
     # Desktop Entry string escaping is applied before Exec argument quoting.
     quoted = ''.join('\\' + char if char in '\\"`$' else '%%' if char == '%' else char for char in value)
     return '"' + quoted.replace('\\', '\\\\').replace('\t', '\\t') + '"'

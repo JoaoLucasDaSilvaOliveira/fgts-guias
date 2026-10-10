@@ -2,6 +2,9 @@ import json
 import tempfile
 import unittest
 import sys
+import shutil
+import subprocess
+import time
 from pathlib import Path
 from unittest.mock import patch
 from fgts_guias.installation import APP_ID, install
@@ -52,3 +55,15 @@ class InstallationTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.install()
         self.assertEqual((self.target / 'operator-file').read_text(), 'keep')
         with self.assertRaises(ValueError): install(self.source, self.data, self.data)
+
+    @unittest.skipUnless(shutil.which('gio'), 'Requires a desktop entry launcher')
+    def test_desktop_launcher_preserves_special_path(self):
+        self.target = self.root / 'pasta com espaço $ " ` \\'
+        (self.source / 'fgts_guias').write_text('#!/bin/sh\ntouch "$(dirname "$0")/launched"\n')
+        self.install()
+        subprocess.run(['gio', 'launch', str(self.applications / 'fgts-guias.desktop')],
+                       check=True, capture_output=True)
+        for _ in range(20):
+            if (self.target / 'launched').exists(): break
+            time.sleep(.1)
+        self.assertTrue((self.target / 'launched').is_file())
