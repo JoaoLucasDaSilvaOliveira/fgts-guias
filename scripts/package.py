@@ -108,5 +108,28 @@ elif platform=='windows':
     compiler=shutil.which('ISCC') or r'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
     subprocess.run([compiler,f'/DAppVersion={version}',f'/DBundlePath={stage}',f'/DOutputPath={release_dir}',
                     str(root/'packaging/windows/installer.iss')],check=True,cwd=root)
-    checksum(release_dir/(name+'-setup.exe'))
+    installer=release_dir/(name+'-setup.exe')
+    checksum(installer)
+    # Verify install, replacement and uninstall without opening the app or portal.
+    with tempfile.TemporaryDirectory(prefix='fgts-setup-check-') as sandbox:
+        destination=Path(sandbox)/'program'
+        private=Path(sandbox)/'private-data'
+        private.mkdir()
+        sentinel=private/'preserve.txt'
+        sentinel.write_text('preserve user data')
+        options=['/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CURRENTUSER',f'/DIR={destination}']
+        for _ in range(2):
+            subprocess.run([str(installer),*options],check=True,timeout=180)
+            if not (destination/'fgts_guias.exe').is_file() or not (destination/'engine/fgts-guias-engine.exe').is_file():
+                raise SystemExit('O instalador Windows não instalou o aplicativo completo')
+        env={**os.environ,'APPDATA':str(private),'LOCALAPPDATA':str(private)}
+        result=subprocess.run([str(destination/'engine/fgts-guias-engine.exe')],
+            input='{"id":1,"command":"bootstrap"}\n',capture_output=True,text=True,
+            encoding='utf-8',env=env,timeout=60,check=True)
+        reply=next(json.loads(line) for line in result.stdout.splitlines() if line.startswith('{') and json.loads(line).get('id')==1)
+        if not reply.get('ok') or reply['data'].get('version')!=version:
+            raise SystemExit('O motor instalado no Windows não iniciou corretamente')
+        subprocess.run([str(destination/'unins000.exe'),'/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART'],check=True,timeout=180)
+        if (destination/'fgts_guias.exe').exists() or sentinel.read_text()!='preserve user data':
+            raise SystemExit('A desinstalação Windows não preservou os dados separados')
 print('Pacote preparado:',archive)
