@@ -1,7 +1,7 @@
 name: fgts_guias
 description: Emissão assistida de guias FGTS Digital.
 publish_to: none
-version: 0.2.1+4
+version: 0.3.0+5
 environment:
   sdk: '>=3.5.0 <4.0.0'
 dependencies:

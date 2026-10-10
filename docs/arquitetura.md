@@ -7,6 +7,8 @@
 - `browser.py`: adaptador da interface pública FGTS Digital, Google Chrome visível via Playwright.
 - `storage.py`: SQLite no diretório de dados do usuário, fora do projeto. Workspace e diário por CNPJ/período.
 - `__main__.py`: processo local, protocolo JSON por linha. Sem servidor HTTP ou dependência de uma planilha externa.
+- `updates.py`: consulta de releases oficiais, comparação de versões e download com integridade confirmada. Metadados passam pela thread de rede, mas as preferências SQLite são gravadas no event loop.
+- `installation.py`: instalação Linux por usuário, registro desktop e recuperação da pasta anterior. `packaging/windows/installer.iss` define instalação/desinstalação Windows.
 
 Comandos: bootstrap, save, import, export, template, start, pause, resume, skip, stop, recover, open_browser, close_browser, accept_difference, reject_difference. Respostas contêm id, ok e data/error. Eventos: progress, attention, saved, skipped, finished, diagnostic, browser_visibility. Não encaminhar stdout Python para texto livre.
 
@@ -23,6 +25,8 @@ Comandos: bootstrap, save, import, export, template, start, pause, resume, skip,
 Cada plataforma deve ser empacotada no seu sistema operacional, com Flutter e PyInstaller. O motor fica ao lado do executável em `engine/`, ou `Contents/Resources/engine/` no macOS. Desenvolvimento aceita `--dart-define=ENGINE_SOURCE=...` e `--dart-define=PYTHON=...` para localizar o motor e seu ambiente virtual.
 
 macOS usa distribuição desktop fora do App Store, sem sandbox: subprocesso, Chrome externo, dados e certificados do sistema precisam desse acesso. Assinatura/notarização e instaladores não foram produzidos. A1/A3 dependem do middleware do fabricante e do Chrome no sistema; compatibilidade não foi validada.
+
+Linux e Windows agora têm instaladores nativos além dos pacotes portáteis. Atualizações são consultadas no cabeçalho e baixadas com SHA-256; a aplicação da atualização exige fechar o app e executar o instalador. Nenhum lote ativo ou pausado pode atualizar. Veja [instalação](instalacao.md). macOS não recebe instalador nesta versão.
 
 Fontes de implementação: [Flutter desktop](https://docs.flutter.dev/platform-integration/desktop), [Playwright Chrome instalado](https://playwright.dev/python/docs/browsers), [contexto persistente](https://playwright.dev/python/docs/api/class-browsertype#browser-type-launch-persistent-context).
 

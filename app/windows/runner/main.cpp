@@ -16,6 +16,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   // Initialize COM, so that it is available for use in the library and/or
   // plugins.
   ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+  // The installer refuses replacement while any app instance is open.
+  HANDLE installation_mutex = ::CreateMutexW(nullptr, FALSE, L"Local\\FGTSGuiasRunning");
 
   flutter::DartProject project(L"data");
 
@@ -39,5 +41,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
 
   ::CoUninitialize();
+  if (installation_mutex) ::CloseHandle(installation_mutex);
   return EXIT_SUCCESS;
 }

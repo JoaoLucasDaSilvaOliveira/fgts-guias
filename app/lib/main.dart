@@ -8,14 +8,18 @@ import 'inputs.dart';
 import 'package:file_picker/file_picker.dart';
 
 import 'engine.dart';
+import 'installation.dart';
+import 'updates.dart';
 
-void main() => runApp(const GuideApp());
+void main(List<String> arguments) =>
+    runApp(GuideApp(installing: arguments.contains('--install')));
 const ink = Color(0xff193b35);
 const paper = Color(0xfff5f4ef);
 
 class GuideApp extends StatelessWidget {
   final EngineClient? engine;
-  const GuideApp({super.key, this.engine});
+  final bool installing;
+  const GuideApp({super.key, this.engine, this.installing = false});
   @override
   Widget build(BuildContext context) => MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -38,7 +42,9 @@ class GuideApp extends StatelessWidget {
             headlineMedium: TextStyle(fontWeight: FontWeight.w700, color: ink),
           ),
         ),
-        home: Workspace(engine: engine),
+        home: installing
+            ? InstallationPage(engine: engine)
+            : Workspace(engine: engine),
       );
 }
 
@@ -65,6 +71,7 @@ class _WorkspaceState extends State<Workspace> {
   final log = <String>[];
   Map<String, dynamic>? attention;
   bool ready = false, running = false, paused = false;
+  bool updateBusy = false;
   bool downloadSaved = false;
   String status = 'Iniciando o aplicativo…', chrome = '';
   String? activeCompany;
@@ -106,6 +113,7 @@ class _WorkspaceState extends State<Workspace> {
   Future<void> connect() async {
     subscription = engine.events.stream.listen((event) {
       if (!mounted) return;
+      if (event['event'].toString().startsWith('update_')) return;
       setState(() {
         if (event['event'] == 'browser_visibility') return;
         if (event['event'] == 'diagnostic') {
@@ -313,6 +321,7 @@ class _WorkspaceState extends State<Workspace> {
   Future<void> start() => startBatch();
 
   Future<void> startBatch() async {
+    if (updateBusy || running) return;
     try {
       await persist();
       setState(() {
@@ -618,6 +627,7 @@ class _WorkspaceState extends State<Workspace> {
           if (!running) ...[
             FilledButton.icon(
               onPressed: ready &&
+                      !updateBusy &&
                       chrome.isNotEmpty &&
                       rows.any((r) => r['selected'] != false)
                   ? start
@@ -1093,12 +1103,19 @@ class _WorkspaceState extends State<Workspace> {
                     ),
                     const Spacer(),
                     OutlinedButton.icon(
-                      onPressed: ready
+                      onPressed: ready && !updateBusy
                           ? () => act('open_browser', {'settings': settings})
                           : null,
                       icon: const Icon(Icons.open_in_browser, size: 18),
                       label: const Text('Abrir Chrome'),
                     ),
+                    if (ready)
+                      UpdateMenu(
+                          engine: engine,
+                          running: running,
+                          onBusy: (value) {
+                            if (mounted) setState(() => updateBusy = value);
+                          }),
                   ],
                 ),
                 const SizedBox(height: 18),

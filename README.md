@@ -2,14 +2,22 @@
 
 Emissão assistida de guias do FGTS Digital em uma janela desktop. Importe suas empresas, informe a competência e acompanhe as conferências antes de cada emissão. A interface é Flutter; a navegação no Google Chrome é feita por um motor Python local.
 
-**Emissão e recuperação de guias validadas em lotes reais no Linux.** Há pacotes portáteis para Linux e Windows na página de releases. Windows, macOS e a compatibilidade com certificados A1/A3 em cada plataforma precisam de validação. O app emite guias; o pagamento é feito fora dele.
+**Emissão e recuperação de guias validadas em lotes reais no Linux e no Windows.** Há instaladores e pacotes portáteis para Linux e Windows. A compatibilidade com cada modelo de certificado e o macOS ainda precisam de validação. O app emite guias; o pagamento é feito fora dele.
 
 ## Baixar o aplicativo
 
 Abra [Releases](https://github.com/JoaoLucasDaSilvaOliveira/fgts-guias/releases/latest) e baixe o pacote do seu sistema:
 
-- **Linux x64:** extraia o `.tar.gz` e execute `fgts_guias` dentro da pasta extraída. Em Ubuntu/Debian, instale `libgtk-3-0` se necessário.
-- **Windows x64:** extraia o `.zip` e execute `fgts_guias.exe`. Mantenha as pastas `data`, `engine` e as DLLs junto do executável. Se faltar runtime C++, instale o Microsoft Visual C++ Redistributable x64.
+- **Linux x64 (CachyOS/Arch, Ubuntu/Debian):** baixe o `.run`. Nas propriedades do arquivo, permita executá-lo como programa e abra o instalador. Escolha a pasta e instale; o app aparecerá no menu de aplicativos. O destino padrão é `~/.local/opt/fgts-guias`. Se preferir o terminal: `chmod +x fgts-guias-v0.3.0-linux-x64.run` e `./fgts-guias-v0.3.0-linux-x64.run`. Em Ubuntu/Debian, instale `libgtk-3-0` se necessário; no Arch/CachyOS, o pacote é `gtk3`.
+- **Windows x64:** execute o `-setup.exe` e siga o assistente. Instala para seu usuário, oferece atalhos e inclui desinstalador. Se faltar runtime C++, instale o Microsoft Visual C++ Redistributable x64.
+
+Também há `.tar.gz` (Linux) e `.zip` (Windows) para uso portátil. Extraia e mantenha `data`, `engine` e bibliotecas junto do executável. Google Chrome é obrigatório em todos os casos.
+
+## Atualizar
+
+No cabeçalho, abra **Atualizações**. O app verifica releases estáveis uma vez por dia ao abrir; essa opção pode ser desativada. Havendo uma nova versão, use **Baixar atualização**, escolha uma pasta e aguarde a verificação de integridade. Depois, feche o app e execute o instalador baixado.
+
+Encerre o lote antes de atualizar. Empresas, configurações, histórico, perfil Chrome e PDFs são preservados. No Linux, a instalação anterior fica numa pasta `fgts-guias.previous-*` para recuperação. Veja [detalhes de instalação e recuperação](docs/instalacao.md).
 
 Os pacotes incluem o motor Python. Não é necessário instalar Python ou Flutter para usá-los. Instale o Google Chrome e o software do certificado, quando exigido pelo fabricante. Os executáveis ainda não possuem assinatura digital.
 
@@ -100,10 +108,10 @@ As opções não solicitam uma segunda emissão para um débito com guia registr
 
 Configuração, tabela e diário de emissão ficam no diretório local de dados do usuário. O perfil Chrome também persiste localmente; mantenha a conta do computador protegida. Arquivos privados não devem ser adicionados ao Git. Não há telemetria ou servidor do app. Veja [privacidade](docs/privacidade.md).
 
-O portal pode mudar. Leitura ambígua, CAPTCHA, autenticação, PDF com formato diferente ou resultado incerto interrompem o processo. A validação estrita pode exigir intervenção mesmo em um PDF legítimo. Não foram executados testes ou builds nesta etapa, conforme combinado; veja [validação manual](docs/validacao-manual.md).
+O portal pode mudar. Leitura ambígua, CAPTCHA, autenticação, PDF com formato diferente ou resultado incerto interrompem o processo. A validação estrita pode exigir intervenção mesmo em um PDF legítimo. Veja os resultados e limites da [validação manual](docs/validacao-manual.md).
 
 ## Empacotar
 
-Após validar, execute `python scripts/package.py` no sistema alvo, dentro de um ambiente com as dependências do motor e PyInstaller (`python -m pip install pyinstaller`). O script prepara o motor e a aplicação Flutter e copia o motor para o pacote. Compile cada sistema nele próprio. Assinatura, notarização, instaladores e releases binárias são etapas posteriores. [Flutter desktop](https://docs.flutter.dev/platform-integration/desktop).
+Execute `python scripts/package.py` no sistema alvo, dentro de um ambiente com as dependências do motor e PyInstaller (`python -m pip install pyinstaller`). O script compila Flutter, empacota o motor, verifica o protocolo UTF-8 e gera pacotes portáteis, instaladores e checksums. No Windows, instale também Inno Setup 6. Compile cada sistema nele próprio. Os workflows do GitHub fazem builds Linux/Windows; assinatura digital e notarização não estão incluídas. [Flutter desktop](https://docs.flutter.dev/platform-integration/desktop).
 
 Documentação: [fluxo aprendido](docs/fluxo-fgts.md), [arquitetura](docs/arquitetura.md), [instruções para colaboradores](AGENTS.md). Licença MIT; contribuições devem usar exemplos fictícios.

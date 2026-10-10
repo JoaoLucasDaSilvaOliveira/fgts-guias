@@ -1,16 +1,20 @@
 import asyncio
 import json
 import sys
+from pathlib import Path
 from .storage import Storage
 from .errors import user_message
 from .domain import normalize_row, period, valid_cnpj, digits
 from .files import read_table, write_table
 from .browser import Portal, chrome_path
 from .decisions import Decisions, RetryCompany
+from .updates import Updates
+from .version import VERSION
 
 class Engine:
     def __init__(self):
         self.store = Storage()
+        self.updates = Updates(self.store, self.event)
         self.decisions = Decisions(self.store)
         self.batch_settings = None
         self.gate = asyncio.Event()
@@ -122,7 +126,30 @@ class Engine:
             self.current = None
     async def command(self, name, data):
         if name == 'bootstrap':
-            return {'workspace':self.store.get('workspace', {}), 'chrome':chrome_path(), 'dataDir':str(self.store.root)}
+            return {'workspace':self.store.get('workspace', {}), 'chrome':chrome_path(), 'dataDir':str(self.store.root), 'version':VERSION}
+        elif name in ['check_updates', 'download_update', 'update_preferences', 'installation_info', 'install', 'launch_installed']:
+            if self.task and not self.task.done():
+                raise ValueError('Encerre o lote antes de instalar ou baixar uma atualização.')
+            if name == 'check_updates':
+                return await self.updates.check(data.get('automatic', False))
+            if name == 'download_update':
+                return await asyncio.to_thread(self.updates.download, data['tag'], data['folder'])
+            if name == 'update_preferences':
+                preferences = self.store.get('updates', {})
+                preferences['automatic'] = bool(data['automatic'])
+                self.store.put('updates', preferences)
+            else:
+                from . import installation
+                if name == 'installation_info':
+                    return installation.info()
+                if name == 'install':
+                    return await asyncio.to_thread(installation.install, installation.payload(), data['destination'], self.store.root, data.get('desktop', False))
+                if name == 'launch_installed':
+                    target = Path(data['path']).resolve()
+                    from .external import launch_external
+                    if target.name != 'fgts_guias' or not (target.parent / 'fgts-install.json').is_file():
+                        raise ValueError('O aplicativo instalado não foi encontrado.')
+                    launch_external([str(target)], cwd=target.parent)
         if name == 'save':
             self.store.put('workspace', data)
         elif name == 'import':
