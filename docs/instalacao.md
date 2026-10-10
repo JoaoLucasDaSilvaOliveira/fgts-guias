@@ -33,3 +33,9 @@ Depois do download, o operador fecha o app e executa o instalador. Não há troc
 scripts/package.py produz bundle portátil, instalador e respectivos checksums. Linux gera `.tar.gz` e `.run`; Windows gera `.zip` e `-setup.exe` com Inno Setup 6. Os builds são feitos nativamente em cada plataforma. workflow_dispatch valida e gera artifacts sem publicar; tags v* anexadas a uma release draft publicam os pacotes após ambos os builds passarem. A assinatura digital e a atualização totalmente automática ficam fora desta versão.
 
 Referências: [API de releases do GitHub](https://docs.github.com/en/rest/releases/releases), [instalação por usuário no Inno Setup](https://jrsoftware.org/ishelp/topic_setup_privilegesrequired.htm), [especificação de atalhos desktop](https://specifications.freedesktop.org/desktop-entry-spec/latest/).
+
+## Validação da v0.3.0
+
+Os [builds Linux e Windows](https://github.com/JoaoLucasDaSilvaOliveira/fgts-guias/actions/runs/38010256198) passaram antes da publicação. Foram verificados os testes do motor e da interface, a análise Flutter, o protocolo do motor empacotado, a instalação Linux isolada e a instalação, reinstalação e desinstalação Windows isoladas. O atalho Linux também foi executado em uma pasta com espaços, acentos e caracteres especiais. Caminhos com `%`, `=` ou quebras de linha são recusados para evitar atalhos incompatíveis.
+
+Após publicar, a rotina de atualização consultou a API real do GitHub e baixou o instalador Linux da v0.3.0, conferindo tamanho, SHA-256 e reutilização do arquivo íntegro já baixado. Houve uma falha transitória de DNS na primeira tentativa; a rotina mostrou erro de conexão e a repetição concluiu. Nenhuma emissão real foi executada nessa validação de distribuição.
