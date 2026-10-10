@@ -12,9 +12,11 @@ from .version import VERSION
 APP_ID = 'org.fgtsguias.desktop'
 
 def desktop_quote(value):
-    if '\n' in value or '\r' in value:
-        raise ValueError('O caminho não pode conter quebras de linha.')
-    return '"' + value.replace('\\', '\\\\').replace('"', '\\"').replace('`', '\\`').replace('$', '\\$').replace('%', '%%') + '"'
+    if '\n' in value or '\r' in value or '=' in value:
+        raise ValueError('Escolha um caminho sem quebras de linha ou sinal de igual para registrar o atalho.')
+    # Desktop Entry string escaping is applied before Exec argument quoting.
+    quoted = ''.join('\\' + char if char in '\\"`$' else '%%' if char == '%' else char for char in value)
+    return '"' + quoted.replace('\\', '\\\\').replace('\t', '\\t') + '"'
 
 def payload():
     if sys.platform != 'linux' or not getattr(sys, 'frozen', False):
@@ -69,9 +71,10 @@ def _install(source, destination, data_root, desktop=False, home=None, applicati
     home = Path(home or Path.home())
     applications = Path(applications or Path(os.environ.get('XDG_DATA_HOME', home / '.local/share')) / 'applications')
     launcher = applications / 'fgts-guias.desktop'
+    icon = str(target / 'fgts-guias.svg').replace('\\', '\\\\').replace('\t', '\\t')
     entry = ('[Desktop Entry]\nType=Application\nName=FGTS Guias\nComment=Emissão assistida de guias FGTS\n'
              f'Exec={desktop_quote(str(target / "fgts_guias"))}\n'
-             f'Icon={target / "fgts-guias.svg"}\nTerminal=false\nCategories=Office;Finance;\nStartupNotify=true\n')
+             f'Icon={icon}\nTerminal=false\nCategories=Office;Finance;\nStartupNotify=true\n')
     target.parent.mkdir(parents=True, exist_ok=True)
     stage = Path(tempfile.mkdtemp(prefix='.fgts-stage-', dir=target.parent))
     backup = target.with_name(target.name + '.previous-' + uuid.uuid4().hex[:8])
