@@ -11,6 +11,54 @@ class DecisionTests(unittest.IsolatedAsyncioTestCase):
         self.decisions = Decisions(SimpleNamespace(record_decision=self.records.append))
         self.company = {'cnpj':'00000000000191', 'fgts':100, 'total':100}
 
+    def accept_values(self, expected, found):
+        context = {'initial':'09/2026', 'final':'09/2026', 'scope':'Consignado'}
+        descriptor, _ = self.decisions.create(self.company, context, expected, found)
+        self.decisions.accept(descriptor['id'], self.company)
+        self.decisions.clear()
+        return context
+
+    async def test_same_components_across_steps_and_derived_total_are_reused(self):
+        expected = {'fgts':100,'consignado':50,'total':150}
+        found = {'fgts':100,'consignado':70,'total':170}
+        context = self.accept_values(expected, found)
+        for scope in ('Consignado', 'Vencimento', 'Emissão', 'Conferência do PDF'):
+            self.assertTrue(self.decisions.covered(self.company, {**context,'scope':scope}, expected, found))
+        self.assertTrue(self.decisions.covered(self.company, context, {'total':150}, {'total':170}))
+        self.assertEqual(len(self.records), 1)
+
+    async def test_changed_pair_or_new_field_requires_acceptance(self):
+        expected = {'fgts':100,'consignado':50,'total':150}
+        found = {'fgts':100,'consignado':70,'total':170}
+        context = self.accept_values(expected, found)
+        self.assertFalse(self.decisions.covered(self.company, context, expected, {**found,'fgts':110,'total':180}))
+        self.assertFalse(self.decisions.covered(self.company, context, expected, {**found,'consignado':80,'total':180}))
+        self.assertFalse(self.decisions.covered(self.company, context, expected, found))
+
+    async def test_return_to_expected_invalidates_old_value(self):
+        context = self.accept_values({'consignado':50},{'consignado':70})
+        self.decisions.observe(self.company, context, {'consignado':50},{'consignado':50})
+        self.assertFalse(self.decisions.covered(self.company, context, {'consignado':50},{'consignado':70}))
+
+    async def test_company_iteration_period_and_expected_value_are_boundaries(self):
+        context = self.accept_values({'consignado':50},{'consignado':70})
+        self.assertFalse(self.decisions.covered(self.company, context, {'consignado':60},{'consignado':70}))
+        context = self.accept_values({'consignado':50},{'consignado':70})
+        self.assertFalse(self.decisions.covered(self.company, {**context,'initial':'10/2026'}, {'consignado':50},{'consignado':70}))
+        context = self.accept_values({'consignado':50},{'consignado':70})
+        self.assertFalse(self.decisions.covered({**self.company,'cnpj':'11111111000111'}, context, {'consignado':50},{'consignado':70}))
+        context = self.accept_values({'consignado':50},{'consignado':70})
+        self.decisions.reset_company()
+        self.assertFalse(self.decisions.covered(self.company, context, {'consignado':50},{'consignado':70}))
+
+    async def test_unexplained_total_and_new_date_are_not_covered(self):
+        expected = {'fgts':100,'consignado':50,'total':150}
+        found = {'fgts':100,'consignado':70,'total':170}
+        context = self.accept_values(expected, found)
+        self.assertFalse(self.decisions.covered(self.company, context, expected, {**found,'total':180}))
+        self.assertFalse(self.decisions.covered(self.company, context,
+            {**expected,'due':'20/10/2026'},{**found,'due':'19/10/2026'}))
+
     async def test_acceptance_is_consumed_once_and_audited(self):
         descriptor, future = self.decisions.create(self.company, {'scope':'FGTS'}, {'fgts':100}, {'fgts':200})
         self.decisions.accept(descriptor['id'], self.company)
@@ -84,6 +132,45 @@ class DecisionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(requests), 3)
 
 class IntegrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_cross_step_reuse_still_rereads_and_checks_identity(self):
+        from fgts_guias.__main__ import Engine
+        engine = Engine.__new__(Engine)
+        engine.decisions = Decisions(SimpleNamespace(record_decision=lambda *_: None))
+        engine.batch_settings = {'initial':'09/2026','final':'09/2026'}
+        engine.gate = asyncio.Event()
+        engine.gate.set()
+        company = {'cnpj':'00000000000191'}
+        expected, found = {'consignado':50}, {'consignado':70}
+        confirmations, checks = [], []
+        def event(kind, **data):
+            if kind == 'attention':
+                confirmations.append(data)
+                engine.decisions.accept(data['decision_id'], company)
+                engine.gate.set()
+        engine.event = event
+        portal = Portal.__new__(Portal)
+        portal.decision = engine.decision
+        portal.observe = engine.observe_difference
+        async def guard(*args): checks.append('guard')
+        async def employer(*args): checks.append('employer')
+        async def visibility(*args): pass
+        async def readback():
+            checks.append('readback')
+            return found.copy()
+        portal.guard, portal.employer, portal.visibility = guard, employer, visibility
+        engine.portal = portal
+        for scope in ('Consignado', 'Emissão', 'Conferência do PDF'):
+            self.assertEqual(await portal.difference(company, scope, expected, found, readback), found)
+        self.assertEqual(len(confirmations), 1)
+        self.assertEqual(checks.count('employer'), 3)
+        self.assertEqual(checks.count('readback'), 3)
+        found = {'consignado':80}
+        await portal.difference(company, 'Emissão', expected, found, readback)
+        self.assertEqual(len(confirmations), 2)
+        engine.decisions.reset_company()
+        await portal.difference(company, 'Consignado', expected, found, readback)
+        self.assertEqual(len(confirmations), 3)
+
     async def test_command_releases_only_current_suspended_validation(self):
         from fgts_guias.__main__ import Engine
         from fgts_guias.domain import normalize_row

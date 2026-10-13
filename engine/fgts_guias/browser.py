@@ -32,12 +32,13 @@ def chrome_path():
     return next((str(p) for p in candidates if p and Path(p).is_file()), None)
 
 class Portal:
-    def __init__(self, storage, notify, checkpoint, on_closed, decision=None):
+    def __init__(self, storage, notify, checkpoint, on_closed, decision=None, observe=None):
         self.store, self.notify, self.checkpoint = storage, notify, checkpoint
         self.context = self.page = None
         self.chrome = ChromeSession(storage.root)
         self.on_closed = on_closed
         self.decision = decision
+        self.observe = observe
         self.validation_stage = 'FGTS'
         self.observed_browser = None
         self.page_session = None
@@ -231,6 +232,9 @@ class Portal:
         return result
 
     async def difference(self, company, scope, expected, found, readback, **context):
+        observer = getattr(self, 'observe', None)
+        if observer:
+            observer(company, expected, found)
         while expected != found:
             if not self.decision:
                 raise Attention('Valores divergentes. Revise a planilha e os relatórios antes de retomar.', expected=expected, found=found)
@@ -238,6 +242,8 @@ class Portal:
             await self.guard()
             await self.employer(company)
             current = await readback()
+            if observer:
+                observer(company, expected, current)
             if current == found:
                 return current
             found = current

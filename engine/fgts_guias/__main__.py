@@ -24,7 +24,7 @@ class Engine:
         self.current = None
         self.browser_finished = False
         self.auth_watcher = None
-        self.portal = Portal(self.store, self.event, self.checkpoint, self.browser_closed, self.decision)
+        self.portal = Portal(self.store, self.event, self.checkpoint, self.browser_closed, self.decision, self.observe_difference)
     def browser_closed(self):
         if self.task and not self.task.done() and not self.browser_finished:
             self.browser_finished = True
@@ -55,8 +55,13 @@ class Engine:
         except Exception as exc:
             self.event('diagnostic', message='Retomada automática indisponível; use Retomar: ' + str(exc))
 
+    def observe_difference(self, company, expected, found):
+        self.decisions.observe(company, self.batch_settings or {}, expected, found)
+
     async def decision(self, company, scope, expected, found, **context):
         settings = self.batch_settings
+        if self.decisions.covered(company, settings, expected, found):
+            return
         descriptor, future = self.decisions.create(company, {
             'scope':scope, 'initial':settings['initial'], 'final':settings['final'], **context}, expected, found)
         self.gate.clear()
@@ -75,6 +80,7 @@ class Engine:
         self.batch_settings = settings
         try:
             for source in rows:
+                self.decisions.reset_company()
                 self.current, self.skip = source, False
                 while True:
                     try:
@@ -121,7 +127,7 @@ class Engine:
                 self.event('finished', message='Lote interrompido. Ao iniciar novamente, o app recupera as guias já solicitadas.')
         finally:
             self.cancel_auth_watcher()
-            self.decisions.clear()
+            self.decisions.reset_company()
             self.batch_settings = None
             self.current = None
     async def command(self, name, data):

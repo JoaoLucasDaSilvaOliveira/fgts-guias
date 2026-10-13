@@ -72,7 +72,7 @@ Fluxo implementado: download de emissão excedeu 5 segundos → abrir Consulta d
 
 ## Decisão única do operador
 
-Diferenças identificadas nos resumos de FGTS, consignados, vencimento, total final, candidata única da consulta e valores/datas do PDF podem suspender a conferência com **Aceitar divergência**. Mostrar esperado/encontrado e guia quando conhecida. Aceitar continua daquela conferência, uma vez, após reler os dados; não pula a empresa nem repete a emissão. Uma divergência em outra etapa continua bloqueando mesmo se os números forem iguais aos anteriormente aceitos. Se a consulta não identifica uma candidata única, o operador precisa identificar a guia — aceitar uma divergência não escolhe uma guia arbitrária.
+Diferenças identificadas nos resumos de FGTS, consignados, vencimento, total final, candidata única da consulta e valores/datas do PDF podem suspender a conferência com **Aceitar divergência**. Mostrar esperado/encontrado e guia quando conhecida. Aceitar mantém em memória os campos divergentes e os pares esperado/encontrado durante a empresa atual. Nas etapas seguintes, os mesmos pares dispensam novo aceite, mas os valores e o empregador são conferidos novamente. Se um par mudar ou surgir outra divergência, pedir nova decisão. A memória é apagada a cada iteração de empresa, inclusive ao repetir um lote. Totais calculados exatamente como FGTS + consignado acompanham o aceite dos componentes; totais incoerentes exigem conferência própria. O aceite não pula a empresa nem repete a emissão. Se a consulta não identifica uma candidata única, o operador precisa identificar a guia — aceitar uma divergência não escolhe uma guia arbitrária.
 
 ## Repetição do lote
 
