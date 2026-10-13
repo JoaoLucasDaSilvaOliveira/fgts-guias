@@ -8,6 +8,12 @@ Ao fechar a aba utilizada ou o Chrome, o app cancela imediatamente o lote, inclu
 
 **Fechar Chrome para trocar certificado** fecha o navegador inteiro e encerra um lote pausado. Abrir novamente e começar um novo lote são ações explícitas. Fechar somente uma aba não basta para trocar o certificado em uma sessão ainda aberta.
 
+**Requisito para alternar entre FGTS e INSS:**
+
+Na implementação de INSS, toda troca FGTS → INSS ou INSS → FGTS deve encerrar completamente a instância Chrome gerenciada pelo app, confirmar que seus processos terminaram e só então iniciar outra instância. Fechar abas, criar uma janela ou reconectar o CDP à instância anterior não atende esse requisito. Não encerrar navegadores pessoais ou processos que não pertencem à instância do app.
+
+O operador observou que o navegador mantém a escolha do certificado enquanto o processo continua em execução. A nova instância deve permitir novamente a seleção manual de certificado e PIN. Se o encerramento não puder ser confirmado, interromper a troca e avisar o operador; não reutilizar a sessão anterior. Uma troca também não deve continuar um lote ativo ou reaproveitar páginas, contexto de empresa ou controles da sessão anterior. Preservar dados do app, PDFs e o diário das emissões.
+
 Downloads ficam no cache local antes da validação e gravação no destino escolhido. O motor acompanha os eventos Chrome downloadWillBegin/downloadProgress da página utilizada, aguarda conclusão e copia o arquivo pelo identificador do download. O mesmo mecanismo atende emissão e reimpressão; não depende do diálogo Salvar como nem da escolha manual do arquivo. A localização é negada nos portais FGTS/GOV.BR. Nenhum cookie, certificado, perfil ou documento é enviado ao repositório.
 
 Referência técnica: [Playwright connect_over_cdp](https://playwright.dev/python/docs/api/class-browsertype#browser-type-connect-over-cdp).
