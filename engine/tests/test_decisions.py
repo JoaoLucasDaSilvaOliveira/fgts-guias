@@ -92,6 +92,7 @@ class IntegrationTests(unittest.IsolatedAsyncioTestCase):
         company = normalize_row(source)
         records = []
         engine = Engine.__new__(Engine)
+        engine.service = 'fgts'
         engine.store = SimpleNamespace(record_decision=records.append,
             get=lambda *_: {'rows':[source]})
         engine.decisions = Decisions(engine.store)

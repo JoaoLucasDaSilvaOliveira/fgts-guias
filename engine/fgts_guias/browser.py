@@ -58,7 +58,8 @@ class Portal:
                       if 'fgtsdigital.sistema.gov.br/' in page.url or 'sso.acesso.gov.br/' in page.url]
         if len(candidates) > 1:
             raise Attention('Há mais de uma aba FGTS/GOV.BR. Deixe aberta somente a aba que deseja usar.')
-        self.page = candidates[0] if candidates else await self.context.new_page()
+        blank = [page for page in self.context.pages if page.url == 'about:blank']
+        self.page = candidates[0] if candidates else blank[0] if len(blank) == 1 else await self.context.new_page()
         page = self.page
         self.page_session = await self.context.new_cdp_session(page)
         await self.page_session.send('Emulation.setFocusEmulationEnabled', {'enabled':True})

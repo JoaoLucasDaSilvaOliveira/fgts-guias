@@ -4,11 +4,11 @@ from datetime import datetime
 from pathlib import Path
 from openpyxl import Workbook, load_workbook
 from pypdf import PdfReader
-from .domain import HEADERS, header_key, digits, reais, money
+from .domain import HEADERS, INSS_HEADERS, header_key, digits, reais, money
 
 KEYS = ['cod', 'empresa', 'cnpj', 'fgts', 'consignado', 'total', 'observacoes']
 
-def read_table(path):
+def read_table(path, service='fgts'):
     suffix = Path(path).suffix.lower()
     if suffix == '.csv':
         with open(path, encoding='utf-8-sig', newline='') as stream:
@@ -26,7 +26,8 @@ def read_table(path):
     if not data:
         raise ValueError('A planilha está vazia. Inclua pelo menos uma empresa antes de importar.')
     headers = [header_key(x) for x in data[0]]
-    required = [header_key(x) for x in HEADERS]
+    required = [header_key(x) for x in (INSS_HEADERS if service == 'inss' else HEADERS)]
+    keys = ['cod', 'empresa', 'cnpj', 'inss', 'observacoes'] if service == 'inss' else KEYS
     if any(headers.count(x) != 1 for x in required):
         raise ValueError('A planilha tem colunas obrigatórias ausentes ou repetidas. Baixe o modelo de planilha e mantenha os nomes das colunas.')
     indexes = [headers.index(x) for x in required]
@@ -34,9 +35,12 @@ def read_table(path):
     for number, line in enumerate(data[1:], 2):
         if not any(v is not None and str(v).strip() for v in line):
             continue
-        row = {key: str(line[i] if i < len(line) and line[i] is not None else '') for key,i in zip(KEYS,indexes)}
-        for key in ['fgts','consignado','total']:
-            raw = line[indexes[KEYS.index(key)]] if indexes[KEYS.index(key)] < len(line) else None
+        row = {key: str(line[i] if i < len(line) and line[i] is not None else '') for key,i in zip(keys,indexes)}
+        if service == 'fgts' and headers.count('INSS') == 1:
+            index = headers.index('INSS')
+            row['inss'] = str(line[index] if index < len(line) and line[index] is not None else '')
+        for key in ([ 'inss' ] if service == 'inss' else ['fgts','consignado','total']):
+            raw = line[indexes[keys.index(key)]] if indexes[keys.index(key)] < len(line) else None
             if isinstance(raw, (int,float)):
                 row[key] = str(raw).replace('.', ',')
         if row['cnpj'].endswith('.0'):
@@ -44,8 +48,8 @@ def read_table(path):
         row['cnpj'] = digits(row['cnpj']).zfill(14) if row['cnpj'] else ''
         if len(row['cnpj']) > 14:
             raise ValueError(f'Linha {number}: CNPJ possui mais de 14 dígitos')
-        for key in ['fgts', 'consignado', 'total']:
-            if row[key].strip():
+        for key in ['fgts', 'consignado', 'total', 'inss']:
+            if row.get(key, '').strip():
                 try:
                     row[key] = reais(money(row[key]))
                 except ValueError as exc:
@@ -54,13 +58,15 @@ def read_table(path):
         result.append(row)
     return result
 
-def write_table(path, rows):
+def write_table(path, rows, service='fgts'):
     if Path(path).suffix.lower() not in {'.csv', '.xlsx'}:
         raise ValueError('Escolha a extensão .csv ou .xlsx')
-    values = [[row.get(key, '') for key in KEYS] for row in rows]
+    headers = INSS_HEADERS if service == 'inss' else HEADERS + ['INSS']
+    keys = ['cod', 'empresa', 'cnpj', 'inss', 'observacoes'] if service == 'inss' else KEYS + ['inss']
+    values = [[row.get(key, '') for key in keys] for row in rows]
     if Path(path).suffix.lower() == '.xlsx':
         book = Workbook(); sheet = book.active; sheet.title = 'Empresas'
-        sheet.append(HEADERS)
+        sheet.append(headers)
         for value in values:
             sheet.append(value)
             for cell in sheet[sheet.max_row]:
@@ -73,7 +79,7 @@ def write_table(path, rows):
         book.save(path)
     else:
         with open(path, 'w', encoding='utf-8-sig', newline='') as stream:
-            writer = csv.writer(stream, delimiter=';'); writer.writerow(HEADERS)
+            writer = csv.writer(stream, delimiter=';'); writer.writerow(headers)
             # Prevent formulas when CSV is opened in spreadsheet applications.
             writer.writerows([["'"+str(v) if str(v).startswith(('=','+','-','@')) else v for v in row] for row in values])
 

@@ -73,6 +73,8 @@ class _WorkspaceState extends State<Workspace> {
   bool ready = false, running = false, paused = false;
   bool updateBusy = false;
   bool downloadSaved = false;
+  String service = 'fgts';
+  bool switchingService = false;
   String status = 'Iniciando o aplicativo…', chrome = '';
   String? activeCompany;
   String? get activeCompanyLabel {
@@ -101,6 +103,7 @@ class _WorkspaceState extends State<Workspace> {
         'final': finalPeriod.text,
         'output': output.text,
         'downloadSaved': downloadSaved,
+        'service': service,
         'columnWidths': gridWidths,
       };
   @override
@@ -183,7 +186,15 @@ class _WorkspaceState extends State<Workspace> {
       finalPeriod.text = config['final'] ?? '';
       output.text = config['output'] ?? '';
       downloadSaved = config['downloadSaved'] == true;
-      final savedWidths = config['columnWidths'];
+      service = config['service'] == 'inss' ? 'inss' : 'fgts';
+      if (service == 'inss') {
+        finalPeriod.text = initial.text;
+        downloadSaved = false;
+      }
+      var savedWidths = config['columnWidths'];
+      if (savedWidths is List && savedWidths.length == 9) {
+        savedWidths = [...savedWidths.take(6), 120.0, ...savedWidths.skip(6)];
+      }
       if (savedWidths is List && savedWidths.length == gridWidths.length) {
         for (var index = 0; index < gridWidths.length; index++) {
           final width = savedWidths[index];
@@ -292,12 +303,21 @@ class _WorkspaceState extends State<Workspace> {
     try {
       final data = await engine.call('import', {
         'path': picked.files.single.path,
+        'service': service,
       });
-      setState(
-        () => rows = (data['rows'] as List)
-            .map((e) => Map<String, dynamic>.from(e))
-            .toList(),
-      );
+      final previous = {
+        for (final row in rows)
+          row['cnpj'].toString().replaceAll(RegExp(r'\D'), ''): row,
+      };
+      setState(() {
+        rows = (data['rows'] as List).map((value) {
+          final imported = Map<String, dynamic>.from(value);
+          final cnpj =
+              imported['cnpj'].toString().replaceAll(RegExp(r'\D'), '');
+          return <String, dynamic>{...?(previous[cnpj]), ...imported};
+        }).toList();
+        states.clear();
+      });
       maskRows();
       await persist();
     } catch (e) {
@@ -308,20 +328,50 @@ class _WorkspaceState extends State<Workspace> {
   Future<void> export(bool template) async {
     final path = await FilePicker.platform.saveFile(
       dialogTitle: template ? 'Salvar modelo de planilha' : 'Exportar empresas',
-      fileName: template ? 'template-fgts.xlsx' : 'empresas.xlsx',
+      fileName: template ? 'template-$service.xlsx' : 'empresas.xlsx',
       type: FileType.custom,
       allowedExtensions: ['xlsx', 'csv'],
     );
     if (path != null) {
-      await act(template ? 'template' : 'export',
-          {'path': path, 'rows': rows.map(companyPayload).toList()});
+      await act(template ? 'template' : 'export', {
+        'path': path,
+        'rows': rows.map(companyPayload).toList(),
+        'service': service
+      });
     }
   }
 
   Future<void> start() => startBatch();
 
+  Future<void> changeService(String next) async {
+    if (running || updateBusy || switchingService || next == service) return;
+    setState(() => switchingService = true);
+    saver?.cancel();
+    try {
+      await engine.call('select_service', {'service': next});
+      if (!mounted) return;
+      setState(() {
+        service = next;
+        states.clear();
+        log.clear();
+        activeCompany = null;
+        attention = null;
+        status = 'Pronto.';
+        if (service == 'inss') {
+          finalPeriod.text = initial.text;
+          downloadSaved = false;
+        }
+      });
+      await persist();
+    } catch (error) {
+      showError(error);
+    } finally {
+      if (mounted) setState(() => switchingService = false);
+    }
+  }
+
   Future<void> startBatch() async {
-    if (updateBusy || running) return;
+    if (updateBusy || switchingService || running) return;
     try {
       await persist();
       setState(() {
@@ -365,8 +415,10 @@ class _WorkspaceState extends State<Workspace> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'No Chrome, baixe o PDF da guia pela Consulta de Guias. Informe o número e o vencimento, depois selecione o arquivo baixado. O app confere e salva na pasta escolhida.',
+              Text(
+                service == 'inss'
+                    ? 'Selecione o DARF já baixado. Número e vencimento são opcionais; o app confere os dados do PDF.'
+                    : 'No Chrome, baixe o PDF da guia pela Consulta de Guias. Informe o número e o vencimento, depois selecione o arquivo baixado. O app confere e salva na pasta escolhida.',
               ),
               const SizedBox(height: 20),
               TextField(
@@ -437,7 +489,10 @@ class _WorkspaceState extends State<Workspace> {
                     final selected =
                         await pickCompetence(context, controller.text);
                     if (selected != null && mounted) {
-                      setState(() => controller.text = selected);
+                      setState(() {
+                        controller.text = selected;
+                        if (service == 'inss') finalPeriod.text = selected;
+                      });
                       changed();
                     }
                   },
@@ -487,6 +542,7 @@ class _WorkspaceState extends State<Workspace> {
             cells: [
               DataCell(Text({
                     'fgts': 'FGTS',
+                    'inss': 'INSS',
                     'consignado': 'Consignado',
                     'total': 'Total',
                     'due': 'Vencimento',
@@ -513,6 +569,7 @@ class _WorkspaceState extends State<Workspace> {
           'fgts': '',
           'consignado': '',
           'total': '',
+          'inss': '',
           'observacoes': '',
           'selected': true,
         }));
@@ -553,7 +610,9 @@ class _WorkspaceState extends State<Workspace> {
                     child: Text(
                         initial.text.isEmpty
                             ? ''
-                            : '${office.text} · ${initial.text} a ${finalPeriod.text}',
+                            : service == 'inss'
+                                ? '${office.text} · ${initial.text}'
+                                : '${office.text} · ${initial.text} a ${finalPeriod.text}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.right,
@@ -583,17 +642,22 @@ class _WorkspaceState extends State<Workspace> {
                   icon: const Icon(Icons.close))
             ]),
             const SizedBox(height: 24),
-            field('Titular do certificado', office,
+            field(service == 'inss' ? 'Escritório' : 'Titular do certificado',
+                office,
                 width: double.infinity, enabled: !running),
             const SizedBox(height: 16),
-            field('CNPJ do titular', cnpj,
+            field(service == 'inss' ? 'CNPJ do escritório' : 'CNPJ do titular',
+                cnpj,
                 width: double.infinity, enabled: !running),
             const SizedBox(height: 16),
-            Row(children: [
-              Expanded(child: competence('Período inicial', initial)),
-              const SizedBox(width: 12),
-              Expanded(child: competence('Período final', finalPeriod))
-            ]),
+            if (service == 'inss')
+              competence('Competência', initial)
+            else
+              Row(children: [
+                Expanded(child: competence('Período inicial', initial)),
+                const SizedBox(width: 12),
+                Expanded(child: competence('Período final', finalPeriod))
+              ]),
             const SizedBox(height: 16),
             TextField(
               controller: output,
@@ -624,10 +688,28 @@ class _WorkspaceState extends State<Workspace> {
         runSpacing: 8,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
+          SegmentedButton<String>(
+            key: const ValueKey('service-selector'),
+            segments: const [
+              ButtonSegment(value: 'fgts', label: Text('FGTS')),
+              ButtonSegment(value: 'inss', label: Text('INSS')),
+            ],
+            selected: {service},
+            onSelectionChanged:
+                !ready || running || updateBusy || switchingService
+                    ? null
+                    : (selection) => changeService(selection.single),
+          ),
+          if (switchingService)
+            const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2)),
           if (!running) ...[
             FilledButton.icon(
               onPressed: ready &&
                       !updateBusy &&
+                      !switchingService &&
                       chrome.isNotEmpty &&
                       rows.any((r) => r['selected'] != false)
                   ? start
@@ -635,62 +717,64 @@ class _WorkspaceState extends State<Workspace> {
               icon: const Icon(Icons.download_outlined),
               label: const Text('Baixar selecionadas'),
             ),
-            PopupMenuButton<String>(
-              enabled: ready,
-              tooltip: 'Otimização do download',
-              constraints: const BoxConstraints(minWidth: 320, maxWidth: 360),
-              onSelected: (value) {
-                setState(() => downloadSaved = value == 'new');
-                changed();
-              },
-              itemBuilder: (_) => [
-                for (final option in ['same', 'new'])
-                  PopupMenuItem(
-                      value: option,
-                      height: 76,
-                      key: ValueKey('download-$option-option'),
-                      child: Row(children: [
-                        Icon(
-                            downloadSaved == (option == 'new')
-                                ? Icons.radio_button_checked
-                                : Icons.radio_button_unchecked,
-                            size: 20),
-                        const SizedBox(width: 12),
-                        Expanded(
-                            child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                              Text(
-                                  option == 'same'
-                                      ? 'Baixar mesma guia'
-                                      : 'Baixar nova guia',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w600)),
-                              const SizedBox(height: 4),
-                              Text(
-                                  option == 'same'
-                                      ? 'Reutiliza o PDF salvo, se disponível.'
-                                      : 'Faz novo download, mesmo com PDF salvo.',
-                                  style: const TextStyle(
-                                      fontSize: 12, color: Colors.black54)),
-                            ])),
-                      ])),
-              ],
-              child: Container(
-                height: 44,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                    border: Border.all(color: const Color(0xffb9c8bd)),
-                    borderRadius: BorderRadius.circular(10)),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Text(
-                      downloadSaved ? 'Baixar nova guia' : 'Baixar mesma guia'),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.expand_more, size: 18),
-                ]),
+            if (service == 'fgts')
+              PopupMenuButton<String>(
+                enabled: ready,
+                tooltip: 'Otimização do download',
+                constraints: const BoxConstraints(minWidth: 320, maxWidth: 360),
+                onSelected: (value) {
+                  setState(() => downloadSaved = value == 'new');
+                  changed();
+                },
+                itemBuilder: (_) => [
+                  for (final option in ['same', 'new'])
+                    PopupMenuItem(
+                        value: option,
+                        height: 76,
+                        key: ValueKey('download-$option-option'),
+                        child: Row(children: [
+                          Icon(
+                              downloadSaved == (option == 'new')
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_unchecked,
+                              size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                              child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                Text(
+                                    option == 'same'
+                                        ? 'Baixar mesma guia'
+                                        : 'Baixar nova guia',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 4),
+                                Text(
+                                    option == 'same'
+                                        ? 'Reutiliza o PDF salvo, se disponível.'
+                                        : 'Faz novo download, mesmo com PDF salvo.',
+                                    style: const TextStyle(
+                                        fontSize: 12, color: Colors.black54)),
+                              ])),
+                        ])),
+                ],
+                child: Container(
+                  height: 44,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xffb9c8bd)),
+                      borderRadius: BorderRadius.circular(10)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text(downloadSaved
+                        ? 'Baixar nova guia'
+                        : 'Baixar mesma guia'),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.expand_more, size: 18),
+                  ]),
+                ),
               ),
-            ),
           ] else ...[
             if (!paused)
               OutlinedButton.icon(
@@ -820,6 +904,7 @@ class _WorkspaceState extends State<Workspace> {
     'fgts',
     'consignado',
     'total',
+    'inss',
     'observacoes',
     'status',
     'remove'
@@ -831,6 +916,7 @@ class _WorkspaceState extends State<Workspace> {
     'FGTS MENSAL',
     'CONSIGNADO',
     'TOTAL',
+    'INSS',
     'OBSERVAÇÕES',
     'SITUAÇÃO',
     ''
@@ -843,6 +929,7 @@ class _WorkspaceState extends State<Workspace> {
     104.0,
     104.0,
     90.0,
+    104.0,
     140.0,
     100.0,
     44.0
@@ -851,6 +938,7 @@ class _WorkspaceState extends State<Workspace> {
     90.0,
     220.0,
     165.0,
+    120.0,
     120.0,
     120.0,
     120.0,
@@ -866,25 +954,29 @@ class _WorkspaceState extends State<Workspace> {
             .fields[key],
         inputFormatters: key == 'cnpj'
             ? [CnpjFormatter()]
-            : ['fgts', 'consignado'].contains(key)
+            : ['fgts', 'consignado', 'inss'].contains(key)
                 ? [MoneyFormatter()]
                 : null,
-        keyboardType: ['fgts', 'consignado', 'total'].contains(key)
+        keyboardType: ['fgts', 'consignado', 'total', 'inss'].contains(key)
             ? const TextInputType.numberWithOptions(decimal: true)
             : key == 'cnpj'
                 ? TextInputType.number
                 : TextInputType.text,
-        textAlign: ['fgts', 'consignado', 'total'].contains(key)
+        textAlign: ['fgts', 'consignado', 'total', 'inss'].contains(key)
             ? TextAlign.right
             : TextAlign.left,
         enabled: !running ||
             (paused &&
-                ['fgts', 'consignado', 'total', 'observacoes'].contains(key)),
+                (key == 'observacoes' ||
+                    (service == 'inss'
+                        ? key == 'inss'
+                        : ['fgts', 'consignado'].contains(key)))),
         readOnly: key == 'total',
         decoration: InputDecoration(
             border: InputBorder.none,
-            hintText:
-                ['fgts', 'consignado', 'total'].contains(key) ? '0,00' : null),
+            hintText: ['fgts', 'consignado', 'total', 'inss'].contains(key)
+                ? '0,00'
+                : null),
         onChanged: (value) {
           row[key] = value;
           if (key == 'fgts' || key == 'consignado') {
@@ -970,6 +1062,14 @@ class _WorkspaceState extends State<Workspace> {
           ),
       ]);
 
+  List<int> get visibleColumns => [
+        for (var index = 0; index < gridKeys.length; index++)
+          if (service == 'inss'
+              ? !['fgts', 'consignado', 'total'].contains(gridKeys[index])
+              : gridKeys[index] != 'inss')
+            index,
+      ];
+
   Widget gridRow(Map<String, dynamic>? row) {
     final header = row == null;
     return Container(
@@ -1003,7 +1103,7 @@ class _WorkspaceState extends State<Workspace> {
                       changed();
                     },
             )),
-        for (var index = 0; index < gridKeys.length; index++)
+        for (final index in visibleColumns)
           Container(
             width: gridWidths[index],
             height: 56,
@@ -1043,8 +1143,9 @@ class _WorkspaceState extends State<Workspace> {
   }
 
   Widget companyGrid() => LayoutBuilder(builder: (context, constraints) {
-        final width =
-            48 + gridWidths.fold<double>(0, (sum, value) => sum + value);
+        final width = 48 +
+            visibleColumns.fold<double>(
+                0, (sum, index) => sum + gridWidths[index]);
         return Scrollbar(
           controller: tableHorizontalScroll,
           thumbVisibility: true,
@@ -1103,7 +1204,7 @@ class _WorkspaceState extends State<Workspace> {
                     ),
                     const Spacer(),
                     OutlinedButton.icon(
-                      onPressed: ready && !updateBusy
+                      onPressed: ready && !updateBusy && !switchingService
                           ? () => act('open_browser', {'settings': settings})
                           : null,
                       icon: const Icon(Icons.open_in_browser, size: 18),
@@ -1285,7 +1386,9 @@ class _WorkspaceState extends State<Workspace> {
                         children: [
                           Expanded(child: workspace),
                           const SizedBox(height: 14),
-                          SizedBox(height: 210, child: panel),
+                          SizedBox(
+                              height: (size.maxHeight - 330).clamp(70.0, 210.0),
+                              child: panel),
                         ],
                       );
                     },

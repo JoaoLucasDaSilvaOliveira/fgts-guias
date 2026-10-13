@@ -3,6 +3,7 @@ import re
 import unicodedata
 
 HEADERS = ['COD', 'EMPRESA', 'CNPJ', 'FGTS MENSAL', 'CONSIGNADO', 'TOTAL', 'OBSERVAÇÕES']
+INSS_HEADERS = ['COD', 'EMPRESA', 'CNPJ', 'INSS', 'OBSERVAÇÕES']
 
 def digits(value):
     return re.sub(r'\D', '', str(value or ''))
@@ -39,13 +40,19 @@ def valid_cnpj(value):
             return False
     return True
 
-def normalize_row(row):
+def normalize_row(row, service='fgts'):
     item = dict(row)
     item['cnpj'] = digits(item.get('cnpj'))
     if not valid_cnpj(item['cnpj']):
         raise ValueError(f"CNPJ inválido: {item.get('empresa', '')}")
     if not str(item.get('empresa', '')).strip() or not str(item.get('cod', '')).strip():
         raise ValueError('Preencha o código e o nome de todas as empresas.')
+    if service == 'inss':
+        if not str(item.get('inss', '')).strip():
+            raise ValueError(f"{item['empresa']}: informe o valor do INSS.")
+        item['inss'] = money(item['inss'])
+        item['observacoes'] = str(item.get('observacoes', ''))
+        return item
     for key in ['fgts', 'consignado', 'total']:
         item[key] = money(item.get(key))
     if item['fgts'] + item['consignado'] != item['total']:

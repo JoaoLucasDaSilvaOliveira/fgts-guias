@@ -10,6 +10,7 @@ from .browser import Portal, chrome_path
 from .decisions import Decisions, RetryCompany
 from .updates import Updates
 from .version import VERSION
+from .inss import InssPortal
 
 class Engine:
     def __init__(self):
@@ -24,7 +25,30 @@ class Engine:
         self.current = None
         self.browser_finished = False
         self.auth_watcher = None
+        self.service = 'fgts'
         self.portal = Portal(self.store, self.event, self.checkpoint, self.browser_closed, self.decision)
+
+    async def select_service(self, service):
+        if service not in ('fgts', 'inss'):
+            raise ValueError('Escolha FGTS ou INSS.')
+        if service == self.service:
+            if self.store.get('browser_service', 'fgts') != service:
+                if self.task and not self.task.done():
+                    raise ValueError('Encerre o lote antes de trocar de sessão.')
+                await self.portal.close()
+                self.portal.chrome.fresh_authentication = True
+            return
+        if self.task and not self.task.done():
+            raise ValueError('Encerre o lote antes de trocar entre FGTS e INSS.')
+        self.cancel_auth_watcher()
+        await self.portal.close()
+        adapter = InssPortal if service == 'inss' else Portal
+        self.portal = adapter(self.store, self.event, self.checkpoint, self.browser_closed, self.decision)
+        self.portal.chrome.fresh_authentication = True
+        self.service = service
+
+    def normalize(self, row):
+        return normalize_row(row, self.service)
     def browser_closed(self):
         if self.task and not self.task.done() and not self.browser_finished:
             self.browser_finished = True
@@ -82,7 +106,9 @@ class Engine:
                         workspace = self.store.get('workspace', {})
                         source = next((r for r in workspace.get('rows', []) if digits(r.get('cnpj')) == digits(self.current['cnpj'])), self.current)
                         self.event('progress', company=digits(source['cnpj']), message='Abrindo empresa…')
-                        await self.portal.run(normalize_row(source), settings)
+                        await self.portal.launch(settings)
+                        self.store.put('browser_service', self.service)
+                        await self.portal.run(self.normalize(source), settings)
                         break
                     except RetryCompany:
                         if self.skip:
@@ -152,34 +178,42 @@ class Engine:
                     launch_external([str(target)], cwd=target.parent)
         if name == 'save':
             self.store.put('workspace', data)
+        elif name == 'select_service':
+            await self.select_service(data['service'])
         elif name == 'import':
-            return {'rows':read_table(data['path'])}
+            return {'rows':read_table(data['path'], data.get('service', 'fgts'))}
         elif name in ['export','template']:
-            write_table(data['path'], [] if name == 'template' else data['rows'])
+            write_table(data['path'], [] if name == 'template' else data['rows'], data.get('service', 'fgts'))
         elif name == 'open_browser':
             if self.task and not self.task.done():
                 if not self.portal.page or self.portal.page.is_closed():
                     raise ValueError('Encerre o lote antes de abrir outra sessão')
             else:
+                await self.select_service(data['settings'].get('service', 'fgts'))
                 await self.portal.launch(data['settings'])
+                self.store.put('browser_service', self.service)
             await self.portal.visibility(True)
         elif name == 'start':
             if self.task and not self.task.done():
                 raise ValueError('Já existe um lote em andamento')
             settings = data['settings']
+            service = settings.get('service', 'fgts')
             if not valid_cnpj(settings['officeCnpj']):
                 raise ValueError('Informe um CNPJ válido para o titular do certificado.')
             if period(settings['initial']) > period(settings['final']):
                 raise ValueError('O período inicial não pode ser posterior ao final.')
+            if service == 'inss' and settings['initial'] != settings['final']:
+                raise ValueError('Para INSS, escolha uma única competência por lote.')
             if not settings.get('output') or not chrome_path():
                 raise ValueError('Escolha a pasta onde salvar as guias e confira se o Google Chrome está instalado.')
             rows = [r for r in data['rows'] if r.get('selected', True)]
             if not rows:
                 raise ValueError('Selecione pelo menos uma empresa')
-            normalized = [normalize_row(r) for r in rows]
+            normalized = [normalize_row(r, service) for r in rows]
             if len({r['cnpj'] for r in normalized}) != len(rows):
                 raise ValueError('Há CNPJs repetidos no lote')
             settings = dict(settings)
+            await self.select_service(service)
             self.browser_finished = False
             self.gate.set()
             self.task = asyncio.create_task(self.batch(rows, dict(settings)))
@@ -197,7 +231,7 @@ class Engine:
             await self.portal.guard(checkpoint=False)
             await self.portal.visibility(False)
             try:
-                self.decisions.accept(data.get('decision_id'), normalize_row(source))
+                self.decisions.accept(data.get('decision_id'), self.normalize(source))
             except Exception:
                 await self.portal.visibility(True)
                 raise
@@ -218,6 +252,8 @@ class Engine:
             self.event('progress', message='Retomando conferência…')
         elif name == 'skip':
             self.cancel_auth_watcher()
+            if self.service == 'inss':
+                await self.portal.finish_company()
             await self.portal.visibility(False)
             self.skip = True
             self.decisions.retry()
@@ -229,7 +265,8 @@ class Engine:
         elif name == 'recover':
             if not self.current or self.gate.is_set():
                 raise ValueError('Pause uma empresa antes de recuperar a guia')
-            await self.portal.recover(normalize_row(data['row']), data['settings'], data['path'], data['guide'], data['due'])
+            settings = self.batch_settings or data['settings']
+            await self.portal.recover(self.normalize(data['row']), settings, data['path'], data['guide'], data['due'])
         elif name == 'close_browser':
             if self.task and not self.task.done() and self.gate.is_set():
                 raise ValueError('Pause antes de trocar o certificado')

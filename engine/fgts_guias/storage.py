@@ -22,8 +22,9 @@ class Storage:
         self.db.execute('INSERT OR REPLACE INTO settings VALUES (?,?)', (key, json.dumps(value)))
         self.db.commit()
 
-    def job_key(self, company, initial, final):
-        return ':'.join([company['cnpj'], initial, final])
+    def job_key(self, company, initial, final, service='fgts'):
+        key = ':'.join([company['cnpj'], initial, final])
+        return 'inss:' + key if service == 'inss' else key
 
     def job(self, key):
         row = self.db.execute('SELECT value FROM jobs WHERE key=?', (key,)).fetchone()

@@ -1,6 +1,6 @@
 # Emissão de guias INSS — aprendizagem do fluxo
 
-Fluxo em levantamento com o operador na branch `feat/emissao-inss`. Os passos abaixo foram observados no navegador; a automação INSS ainda não está implementada.
+Fluxo aprendido com o operador na branch `feat/emissao-inss`. Os passos abaixo foram observados no navegador. A primeira implementação já está conectada ao app; a emissão real por essa implementação ainda aguarda a validação da interface pelo operador.
 
 ## Sessão do navegador
 
@@ -94,7 +94,7 @@ Após a verificação aceita e o controle **Prosseguir** disponível, clicar uma
 
 Observação em 13/10/2026: após a intervenção do operador, a caixa do hCaptcha estava marcada e sua descrição informava **Você está verificado**. **Prosseguir** foi clicado uma vez, no link com ID `ctl00_cphConteudo_btnProsseguir`. A primeira observação ainda mostrou a tela anterior; a observação seguinte confirmou o redirecionamento para `https://dctfweb.cav.receita.fazenda.gov.br/AplicacoesWeb/DCTFWeb/Paginas/ListaDctfs.aspx`, com **Filtros** e **Relação de Declarações**. Nenhum filtro foi alterado e nenhuma declaração ou emissão foi acionada.
 
-O ponto reservado no código para integrar essa etapa está em `engine/fgts_guias/inss.py`, marcado como `TODO(INSS, operador)`. O módulo ainda não está conectado ao lote do aplicativo.
+O ponto reservado no código para integrar essa etapa está em `engine/fgts_guias/inss.py`, marcado como `TODO(INSS, operador)`. Na implementação atual, o desafio permanece manual; o app monitora a conclusão e aciona Prosseguir somente quando a verificação foi aceita.
 
 ## 9. Conferir Saldo a Pagar e abrir a declaração
 
@@ -110,7 +110,7 @@ Observação em 13/10/2026: o saldo foi lido na página e o operador confirmou q
 
 No detalhamento, após conferir empresa, competência e saldo selecionado, clicar em **Emitir DARF**, observado como link com ID `LinkEmitirDARFIntegral`. Não confundir com **Pagar online DARF**, que não faz parte da emissão/download.
 
-Registrar a intenção antes do clique e começar a observar o download antes de acionar a emissão. Não repetir o clique durante **Aguarde um instante...** ou diante de resultado incerto. A mensagem de sucesso sozinha não confirma que um PDF foi salvo: acompanhar a conclusão do download e depois validar o arquivo antes de marcar a empresa como concluída no app. A validação do PDF INSS e a regra de destino/nome ainda serão implementadas.
+Registrar a intenção antes do clique e começar a observar o download antes de acionar a emissão. Não repetir o clique durante **Aguarde um instante...** ou diante de resultado incerto. A mensagem de sucesso sozinha não confirma que um PDF foi salvo: acompanhar a conclusão do download e depois validar o arquivo antes de marcar a empresa como concluída no app. A implementação valida o DARF e salva em `INSS/EMPRESA.pdf`, na pasta escolhida, preservando outros arquivos existentes.
 
 Observação em 13/10/2026: **Emitir DARF** foi clicado uma vez. O portal mostrou **Aguarde um instante...** e depois **Guia gerada com sucesso em formato PDF.**, com botão **OK**. O evento de download concluiu e forneceu um arquivo PDF na pasta Downloads do operador, com nome gerado pelo portal. Nenhum pagamento foi realizado. O PDF não foi inspecionado nem marcado como validado pelo app nesta etapa.
 
@@ -145,4 +145,6 @@ A implementação deve aguardar os estados reais de carregamento, disponibilidad
 
 ## Próximas etapas
 
-Aguardar a orientação do operador para destino/nome dos PDFs, retorno e próxima empresa. As regras de filtragem da listagem e a validação do PDF INSS ainda precisam ser definidas.
+Verificação da primeira implementação: 44 testes do motor, 12 testes Flutter e análise Flutter passaram. Os testes de seletores usam Chrome com páginas fictícias e todas as requisições interceptadas localmente; não emitem documentos reais. Também foram conferidos o DARF do treinamento pelo novo validador e o encerramento de uma árvore de processos própria, preservando um processo externo. O app Linux foi aberto com dados de exemplo e acompanhado no terminal, sem exceções Dart. Esses testes não substituem a próxima emissão real pelo aplicativo após a aprovação da interface.
+
+A implementação usa `INSS/EMPRESA.pdf` na pasta escolhida, mantém o diário separado e valida o DARF. Filtros além do caso Geral/Ativa mensal, reimpressão automática e regras para débitos vencidos continuam pendentes de orientação. A próxima validação real pelo app depende do GREEN da interface do operador.

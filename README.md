@@ -56,6 +56,14 @@ O script escolhe Windows automaticamente. Não é necessário instalar Chromium 
 
 ## Preparar as empresas
 
+Na branch `feat/emissao-inss`, a barra do lote permite escolher **FGTS** ou **INSS**. A troca encerra o Chrome do app; ao abrir o serviço seguinte, faça a seleção do certificado novamente. Não é possível trocar durante um lote, inclusive pausado.
+
+Para INSS, informe uma competência, o valor esperado no campo **INSS** e a pasta das guias. **Baixar modelo** gera CSV/XLSX com COD, EMPRESA, CNPJ, INSS e OBSERVAÇÕES; há também [template INSS](templates/empresas-inss.csv). Os valores de FGTS e consignado são mantidos ao alternar a visualização. Ao importar outro modelo, os campos ausentes são preservados para CNPJs que já estavam na tabela.
+
+O fluxo INSS abre a Receita, confirma a representação, abre DCTFWeb em outra aba, exige uma declaração **Geral / Ativa** da competência e confere o saldo. Certificado, PIN e CAPTCHA ficam com o operador; o app mostra o Chrome quando necessário. Ao concluir a verificação, a navegação retoma. O PDF é validado e salvo em **INSS/EMPRESA.pdf**, dentro da pasta escolhida. A aba DCTFWeb é fechada depois de salvar, mantendo a Receita para a próxima empresa.
+
+Esta primeira implementação INSS aguarda validação real pelo aplicativo. PDFs salvos são revalidados e reutilizados. Emissão incerta, arquivo ausente ou inválido exige **Recuperar PDF**, sem repetir a emissão. A reimpressão automática INSS ainda não foi aprendida; as opções de novo download pela consulta continuam disponíveis somente para FGTS. Se os filtros padrão da DCTFWeb não mostrarem uma única declaração correspondente, o app solicita intervenção. Não há transmissão ou retificação de declarações nem pagamento automático. Veja [fluxo e limites INSS](docs/fluxo-inss.md).
+
 1. Informe nome e CNPJ do titular do certificado na interface. O app escolhe **Meu Perfil** se esse CNPJ for o da empresa; nas demais usa **Procurador**.
 2. No menu **Planilha**, clique em **Baixar modelo** para salvar um XLSX ou CSV vazio. Também há [template CSV](templates/empresas.csv) no repositório.
 3. Preencha e importe, ou use **Adicionar empresa** e edite na tabela. CNPJs recebem máscara automaticamente. FGTS mensal e consignado aceitam valores em reais com duas casas decimais. Campos vazios valem zero. O total é calculado automaticamente e não pode ser editado.

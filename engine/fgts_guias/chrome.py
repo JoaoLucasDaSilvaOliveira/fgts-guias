@@ -5,6 +5,8 @@ import socket
 import shutil
 import subprocess
 import time
+import re
+import psutil
 from urllib.request import build_opener, ProxyHandler
 from playwright.async_api import async_playwright
 from .external import launch_external
@@ -15,6 +17,8 @@ class ChromeSession:
         self.playwright = self.browser = self.context = self.process = self.cdp = None
         self.port = None
         self.closing = False
+        self.owned = {}
+        self.fresh_authentication = False
 
     async def open(self, executable, settings):
         if self.browser and self.browser.is_connected():
@@ -35,8 +39,9 @@ class ChromeSession:
             self.process = launch_external([
                 executable, '--user-data-dir=' + str(profile),
                 '--remote-debugging-address=127.0.0.1', '--remote-debugging-port=' + str(self.port),
-                '--no-first-run', 'https://fgtsdigital.sistema.gov.br/'],
+                '--no-first-run', 'about:blank' if self.fresh_authentication else settings.get('portalUrl', 'https://fgtsdigital.sistema.gov.br/')],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.remember_processes()
             endpoint = f'http://127.0.0.1:{self.port}'
             deadline = time.monotonic() + 20
             while True:
@@ -59,11 +64,16 @@ class ChromeSession:
             if not self.browser.contexts:
                 raise ValueError('Chrome não disponibilizou o contexto padrão')
             self.context = self.browser.contexts[0]
+            self.remember_processes()
             self.context.set_default_timeout(15000)
             self.cdp = await self.browser.new_browser_cdp_session()
+            if self.fresh_authentication:
+                await self.reset_authentication()
+                self.fresh_authentication = False
             await self.cdp.send('Browser.setDownloadBehavior', {
                 'behavior':'allowAndName', 'downloadPath':str(downloads), 'eventsEnabled':True})
-            for origin in ['https://fgtsdigital.sistema.gov.br', 'https://sso.acesso.gov.br']:
+            for origin in ['https://fgtsdigital.sistema.gov.br', 'https://sso.acesso.gov.br',
+                           'https://servicos.receitafederal.gov.br', 'https://dctfweb.cav.receita.fazenda.gov.br']:
                 await self.cdp.send('Browser.setPermission', {
                     'permission':{'name':'geolocation'}, 'setting':'denied', 'origin':origin})
             return self.context
@@ -89,6 +99,14 @@ class ChromeSession:
                 await page.bring_to_front()
         finally:
             await session.detach()
+
+    async def reset_authentication(self):
+        await self.context.clear_cookies(domain=re.compile(
+            r'(^|\.)(acesso\.gov\.br|receitafederal\.gov\.br|receita\.fazenda\.gov\.br|fgtsdigital\.sistema\.gov\.br)$'))
+        for origin in ['https://sso.acesso.gov.br', 'https://servicos.receitafederal.gov.br',
+                       'https://dctfweb.cav.receita.fazenda.gov.br', 'https://cav.receita.fazenda.gov.br',
+                       'https://fgtsdigital.sistema.gov.br']:
+            await self.cdp.send('Storage.clearDataForOrigin', {'origin':origin, 'storageTypes':'cookies,local_storage'})
 
     async def download(self, page, action, timeout=60):
         """Capture Chrome's completed download for this page, including CDP sessions."""
@@ -133,8 +151,52 @@ class ChromeSession:
         with build_opener(ProxyHandler({})).open(endpoint + '/json/version', timeout=1) as response:
             return json.load(response)
 
+    def remember_processes(self):
+        if not self.process:
+            return
+        try:
+            root = psutil.Process(self.process.pid)
+            if root.pid in self.owned and root.create_time() != self.owned[root.pid]:
+                return
+            for process in [root, *root.children(recursive=True)]:
+                try:
+                    self.owned[process.pid] = process.create_time()
+                except psutil.NoSuchProcess:
+                    pass
+        except psutil.NoSuchProcess:
+            pass
+
+    def owned_alive(self):
+        alive = []
+        for pid, created in self.owned.items():
+            try:
+                process = psutil.Process(pid)
+                if process.create_time() == created and process.status() != psutil.STATUS_ZOMBIE:
+                    alive.append(process)
+            except psutil.NoSuchProcess:
+                pass
+        return alive
+
+    def finish_processes(self):
+        alive = self.owned_alive()
+        for process in alive:
+            try:
+                process.terminate()
+            except psutil.NoSuchProcess:
+                pass
+        _, alive = psutil.wait_procs(alive, timeout=5)
+        for process in alive:
+            try:
+                process.kill()
+            except psutil.NoSuchProcess:
+                pass
+        psutil.wait_procs(alive, timeout=5)
+        if self.owned_alive():
+            raise ValueError('Não foi possível encerrar todos os processos do Chrome do app. Feche essa sessão antes de trocar de serviço.')
+
     async def close(self):
         self.closing = True
+        self.remember_processes()
         try:
             if self.cdp:
                 try:
@@ -148,6 +210,8 @@ class ChromeSession:
                 try:
                     await asyncio.to_thread(self.process.wait, timeout=5)
                 except subprocess.TimeoutExpired:
-                    self.process.terminate()
+                    pass
+            await asyncio.to_thread(self.finish_processes)
+            self.owned.clear()
             self.playwright = self.browser = self.context = self.process = self.cdp = None
             self.port = None

@@ -89,12 +89,16 @@ Map<String, dynamic> companyPayload(Map<String, dynamic> row) => {
       'fgts': moneyText(moneyCents(row['fgts']?.toString() ?? '')),
       'consignado': moneyText(moneyCents(row['consignado']?.toString() ?? '')),
       'total': rowTotal(row),
+      'inss': (row['inss']?.toString() ?? '').trim().isEmpty
+          ? ''
+          : moneyText(moneyCents(row['inss'].toString())),
     };
 
 String companyFieldText(Map<String, dynamic> row, String key) {
   final value = row[key]?.toString() ?? '';
   if (key == 'cnpj') return maskCnpj(value);
-  if (['fgts', 'consignado', 'total'].contains(key) && moneyCents(value) == 0) {
+  if (['fgts', 'consignado', 'total', 'inss'].contains(key) &&
+      moneyCents(value) == 0) {
     return '';
   }
   return value;
@@ -111,6 +115,7 @@ class CompanyControllers {
             'fgts',
             'consignado',
             'total',
+            'inss',
             'observacoes'
           ])
             key: TextEditingController(text: companyFieldText(row, key))

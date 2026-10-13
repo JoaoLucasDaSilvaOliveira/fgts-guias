@@ -5,12 +5,20 @@
 - `files.py`: CSV/XLSX com cabeçalhos normalizados; validação conservadora do PDF.
 - `chrome.py`: abertura convencional do Chrome e conexão CDP local, preservando sessão.
 - `browser.py`: adaptador da interface pública FGTS Digital, Google Chrome visível via Playwright.
+- `inss.py`: adaptador Receita/DCTFWeb, com aba RFB persistente e aba de serviço por empresa; usa o mesmo controle de pausa e decisões do motor.
+- `inss_pdf.py`: validação conservadora do DARF SENDA; identidade, competência, total, vencimento e número identificados de forma única.
 - `storage.py`: SQLite no diretório de dados do usuário, fora do projeto. Workspace e diário por CNPJ/período.
 - `__main__.py`: processo local, protocolo JSON por linha. Sem servidor HTTP ou dependência de uma planilha externa.
 - `updates.py`: consulta de releases oficiais, comparação de versões e download com integridade confirmada. Metadados passam pela thread de rede, mas as preferências SQLite são gravadas no event loop.
 - `installation.py`: instalação Linux por usuário, registro desktop e recuperação da pasta anterior. `packaging/windows/installer.iss` define instalação/desinstalação Windows.
 
 Comandos: bootstrap, save, import, export, template, start, pause, resume, skip, stop, recover, open_browser, close_browser, accept_difference, reject_difference. Respostas contêm id, ok e data/error. Eventos: progress, attention, saved, skipped, finished, diagnostic, browser_visibility. Não encaminhar stdout Python para texto livre.
+
+`settings.service` escolhe `fgts` (padrão compatível com dados antigos) ou `inss`. `select_service` exige lote encerrado e confirma o término da árvore de processos Chrome pertencente ao app, antes de criar o adaptador seguinte. PIDs são vinculados ao horário de criação, evitando encerrar um processo externo que reutilizou um PID. O novo Chrome inicia sem autenticação dos portais anteriores: cookies e localStorage dos serviços oficiais são limpos somente no perfil do app na alternância; histórico, empresas, arquivos e perfil pessoal permanecem intactos. O último serviço aberto é registrado para também reconhecer alternância entre execuções do aplicativo.
+
+INSS é monetário independente de TOTAL FGTS + CONSIGNADO e requer uma competência por lote. Modelos INSS usam COD/EMPRESA/CNPJ/INSS/OBSERVAÇÕES. O diário INSS tem prefixo `inss:`; as chaves FGTS antigas permanecem intactas. Arquivos INSS usam subpasta própria. Intenções pendentes nunca repetem Emitir DARF automaticamente; o cache local ou PDF escolhido pelo operador recupera o arquivo. Uma diferença na listagem exige revisão antes de abrir a declaração; diferenças identificadas no detalhamento e no PDF podem usar a decisão específica, com identidade e competência obrigatórias. Reimpressão automática e filtros de declarações fora do caso mensal Geral/Ativa ainda não foram ensinados.
+
+Referências da implementação: [gestão de processos psutil](https://psutil.io/api/process.html), [captura de novas abas Playwright](https://playwright.dev/python/docs/api/class-browsercontext#browser-context-expect-page).
 
 **Empresa** contém COD, EMPRESA, CNPJ, FGTS MENSAL, CONSIGNADO, TOTAL, OBSERVAÇÕES. COD é identificação humana; CNPJ decide perfil e é chave financeira. Na interface, TOTAL é calculado em centavos como FGTS + consignado e não é editável, inclusive após importação. Campos monetários vazios são enviados como 0,00; o motor continua verificando a igualdade. O titular configura nome/CNPJ na própria interface, sem .env.
 
