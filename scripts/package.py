@@ -16,7 +16,7 @@ version=next(line.split(':',1)[1].strip().split('+')[0] for line in (root/'app/p
 if not platform:
     raise SystemExit('Sistema não suportado')
 subprocess.run([sys.executable,'-m','PyInstaller','--noconfirm','--clean','--onedir','--name','fgts-guias-engine',
-                '--paths',str(root/'engine'),'--collect-all','playwright',
+                '--paths',str(root/'engine'),'--collect-all','playwright','--collect-data','certifi',
                 '--distpath',str(root/'dist/engine'),'--workpath',str(root/'build/pyinstaller'),
                 '--specpath',str(root/'build'),str(root/'engine/run_engine.py')],check=True,cwd=root)
 flutter = shutil.which('flutter')
@@ -45,6 +45,7 @@ with tempfile.TemporaryDirectory() as sandbox:
     requests = [
         {'id':1,'command':'bootstrap'},
         {'id':2,'command':'start','data':{'settings':{'officeCnpj':''}}},
+        {'id':3,'command':'check_updates'},
     ]
     result=subprocess.run([str(executable)], input=''.join(json.dumps(request)+'\n' for request in requests),
                           capture_output=True,text=True,encoding='utf-8',env=env,timeout=60,check=True)
@@ -55,6 +56,9 @@ with tempfile.TemporaryDirectory() as sandbox:
     validation = next(item for item in replies if item.get('id') == 2)
     if validation.get('ok') or 'válido' not in validation.get('error', ''):
         raise SystemExit('Motor empacotado não respondeu à validação em UTF-8')
+    updates = next(item for item in replies if item.get('id') == 3)
+    if not updates.get('ok') or not updates.get('data', {}).get('tag'):
+        raise SystemExit('Motor empacotado não conseguiu consultar o GitHub por HTTPS: ' + result.stdout)
     subprocess.run([str(executable), '--check-chrome'], env=env, timeout=60, check=True)
 
 name=f'fgts-guias-v{version}-{platform}-x64'

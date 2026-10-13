@@ -8,7 +8,7 @@ Emissão assistida de guias do FGTS Digital em uma janela desktop. Importe suas 
 
 Abra [Releases](https://github.com/JoaoLucasDaSilvaOliveira/fgts-guias/releases/latest) e baixe o pacote do seu sistema:
 
-- **Linux x64 (CachyOS/Arch, Ubuntu/Debian):** baixe o `.run`. Nas propriedades do arquivo, permita executá-lo como programa e abra o instalador. Escolha a pasta e instale; o app aparecerá no menu de aplicativos. O destino padrão é `~/.local/opt/fgts-guias`. Se preferir o terminal: `chmod +x fgts-guias-v0.3.1-linux-x64.run` e `./fgts-guias-v0.3.1-linux-x64.run`. Em Ubuntu/Debian, instale `libgtk-3-0` se necessário; no Arch/CachyOS, o pacote é `gtk3`.
+- **Linux x64 (CachyOS/Arch, Ubuntu/Debian):** baixe o `.run`. Nas propriedades do arquivo, permita executá-lo como programa e abra o instalador. Escolha a pasta e instale; o app aparecerá no menu de aplicativos. O destino padrão é `~/.local/opt/fgts-guias`. Se preferir o terminal: `chmod +x fgts-guias-v0.3.2-linux-x64.run` e `./fgts-guias-v0.3.2-linux-x64.run`. Em Ubuntu/Debian, instale `libgtk-3-0` se necessário; no Arch/CachyOS, o pacote é `gtk3`.
 - **Windows x64:** execute o `-setup.exe` e siga o assistente. Instala para seu usuário, oferece atalhos e inclui desinstalador. Se faltar runtime C++, instale o Microsoft Visual C++ Redistributable x64.
 
 Também há `.tar.gz` (Linux) e `.zip` (Windows) para uso portátil. Extraia e mantenha `data`, `engine` e bibliotecas junto do executável. Google Chrome é obrigatório em todos os casos.

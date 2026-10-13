@@ -6,6 +6,8 @@ import os
 import platform
 import re
 import time
+import ssl
+import certifi
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
@@ -36,9 +38,22 @@ def official_asset(url, tag, name):
         raise ValueError('O endereço do pacote não corresponde ao repositório oficial.')
     return url
 
+def tls_context():
+    context = ssl.create_default_context()
+    # Frozen Python may carry OpenSSL defaults from the build distribution.
+    # Keep custom trust configuration and Windows' certificate store intact.
+    if not os.environ.get('SSL_CERT_FILE') and not os.environ.get('SSL_CERT_DIR'):
+        context.load_verify_locations(cafile=certifi.where())
+        if platform.system() == 'Linux':
+            for bundle in ('/etc/ssl/cert.pem', '/etc/ssl/certs/ca-certificates.crt', '/etc/pki/tls/certs/ca-bundle.crt'):
+                if Path(bundle).is_file():
+                    context.load_verify_locations(cafile=bundle)
+                    break
+    return context
+
 def open_url(url):
     request = Request(url, headers={'User-Agent':f'FGTSGuias/{VERSION}', 'Accept':'application/vnd.github+json'})
-    response = urlopen(request, timeout=20)
+    response = urlopen(request, timeout=20, context=tls_context())
     parsed = urlparse(response.url)
     if parsed.scheme != 'https' or parsed.hostname not in (
             'api.github.com', 'github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'):
@@ -78,11 +93,17 @@ class Updates:
             self.store.put('updates', preferences)
             return {**result, 'automatic':preferences.get('automatic', True)}
         except (URLError, HTTPError, TimeoutError, OSError, KeyError, ValueError) as exc:
-            preferences['checked'] = time.time()
+            preferences.pop('checked', None)
             if not cached:
                 preferences['release'] = {'message':'Não foi possível consultar as atualizações. Tente novamente.'}
             self.store.put('updates', preferences)
-            raise ValueError('Não foi possível consultar as atualizações. Confira a conexão e tente novamente.') from exc
+            if isinstance(getattr(exc, 'reason', exc), ssl.SSLCertVerificationError):
+                message = 'Não foi possível validar o certificado HTTPS do GitHub. Baixe o instalador pelo site oficial.'
+            elif isinstance(exc, HTTPError):
+                message = f'O GitHub recusou a consulta de atualizações (HTTP {exc.code}). Tente novamente mais tarde.'
+            else:
+                message = 'Não foi possível consultar as atualizações. Confira a conexão e tente novamente.'
+            raise ValueError(message) from exc
 
     def download(self, tag, folder):
         try:

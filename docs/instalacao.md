@@ -39,3 +39,9 @@ Referências: [API de releases do GitHub](https://docs.github.com/en/rest/releas
 Os [builds Linux e Windows](https://github.com/JoaoLucasDaSilvaOliveira/fgts-guias/actions/runs/38010256198) passaram antes da publicação. Foram verificados os testes do motor e da interface, a análise Flutter, o protocolo do motor empacotado, a instalação Linux isolada e a instalação, reinstalação e desinstalação Windows isoladas. O atalho Linux também foi executado em uma pasta com espaços, acentos e caracteres especiais. Caminhos com `%`, `=` ou quebras de linha são recusados para evitar atalhos incompatíveis.
 
 Após publicar, a rotina de atualização consultou a API real do GitHub e baixou o instalador Linux da v0.3.0, conferindo tamanho, SHA-256 e reutilização do arquivo íntegro já baixado. Houve uma falha transitória de DNS na primeira tentativa; a rotina mostrou erro de conexão e a repetição concluiu. Nenhuma emissão real foi executada nessa validação de distribuição.
+
+## Correção da consulta HTTPS — v0.3.2
+
+O motor empacotado inclui o pacote de certificados raiz Certifi e mantém também a confiança do sistema. Configurações explícitas SSL_CERT_FILE/SSL_CERT_DIR são respeitadas. A verificação HTTPS de certificados e do nome do servidor continua obrigatória. No Linux, carregar também os arquivos conhecidos de certificados do sistema evita depender dos caminhos OpenSSL da distribuição usada na compilação. Referência: [Certifi](https://github.com/certifi/python-certifi).
+
+Uma falha de consulta não conta como verificação diária bem-sucedida. A interface mostra o erro mesmo na consulta automática e só declara versão atualizada quando recebeu metadados de versão. O empacotamento testa a consulta real ao GitHub pelo motor congelado nas duas plataformas.

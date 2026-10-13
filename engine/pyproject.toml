@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fgts-guias-engine"
-version = "0.3.1"
+version = "0.3.2"
 description = "Motor local de emissão assistida de guias FGTS Digital"
 requires-python = ">=3.11"
-dependencies = ["playwright>=1.61,<2", "openpyxl>=3.1,<4", "pypdf>=5,<7", "platformdirs>=4,<5"]
+dependencies = ["playwright>=1.61,<2", "openpyxl>=3.1,<4", "pypdf>=5,<7", "platformdirs>=4,<5", "certifi>=2024.2.2"]
 
 [project.scripts]
 fgts-guias-engine = "fgts_guias.__main__:main"

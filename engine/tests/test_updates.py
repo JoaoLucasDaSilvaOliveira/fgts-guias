@@ -5,8 +5,9 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
-from fgts_guias.updates import Updates, API, REPO, asset_name, semver
+from unittest.mock import patch, MagicMock
+from urllib.error import URLError
+from fgts_guias.updates import Updates, API, REPO, asset_name, semver, tls_context
 
 class Store:
     def __init__(self): self.value = {}; self.root = Path('/example/data')
@@ -38,6 +39,42 @@ class UpdateTests(unittest.TestCase):
             self.assertTrue(asyncio.run(self.updates.check())['available'])
             self.assertTrue(asyncio.run(self.updates.check(True))['available'])
             self.assertEqual(request.call_count, 1)
+
+    def test_failed_query_does_not_suppress_retry_for_a_day(self):
+        with patch('fgts_guias.updates.open_url', side_effect=URLError('offline')):
+            with self.assertRaises(ValueError): asyncio.run(self.updates.check(True))
+        self.assertNotIn('checked', self.store.value)
+        with patch('fgts_guias.updates.open_url', side_effect=self.response) as request:
+            self.assertTrue(asyncio.run(self.updates.check(True))['available'])
+            self.assertEqual(request.call_count, 1)
+
+    def test_linux_uses_system_trust_without_disabling_verification(self):
+        import ssl
+        context = ssl.create_default_context()
+        with patch('fgts_guias.updates.ssl.create_default_context', return_value=context), patch.dict('os.environ', {}, clear=True):
+            actual = tls_context()
+        self.assertTrue(actual.check_hostname)
+        self.assertEqual(actual.verify_mode, ssl.CERT_REQUIRED)
+        self.assertTrue(actual.get_ca_certs())
+
+    def test_custom_certificate_configuration_is_preserved(self):
+        context = MagicMock()
+        with patch('fgts_guias.updates.ssl.create_default_context', return_value=context), patch.dict('os.environ', {'SSL_CERT_FILE':'/custom/trust.pem'}):
+            self.assertIs(tls_context(), context)
+        context.load_verify_locations.assert_not_called()
+
+    def test_windows_also_loads_the_bundled_roots(self):
+        import certifi
+        context = MagicMock()
+        with patch('fgts_guias.updates.platform.system', return_value='Windows'), patch('fgts_guias.updates.ssl.create_default_context', return_value=context), patch.dict('os.environ', {}, clear=True):
+            tls_context()
+        context.load_verify_locations.assert_called_once_with(cafile=certifi.where())
+
+    def test_certificate_failure_explains_the_error(self):
+        import ssl
+        with patch('fgts_guias.updates.open_url', side_effect=URLError(ssl.SSLCertVerificationError('certificate verification failed'))):
+            with self.assertRaisesRegex(ValueError, 'certificado HTTPS'):
+                asyncio.run(self.updates.check())
     def test_validated_download_and_corruption_does_not_replace_file(self):
         with tempfile.TemporaryDirectory() as folder, patch('fgts_guias.updates.open_url', side_effect=self.response):
             result = self.updates.download('v0.4.0', folder)

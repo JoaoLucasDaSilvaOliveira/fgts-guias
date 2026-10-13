@@ -34,8 +34,12 @@ class _UpdateMenuState extends State<UpdateMenu> {
           await widget.engine.call('check_updates', {'automatic': automatic});
       if (mounted) setState(() => release = result);
     } catch (error) {
-      if (mounted && !automatic) {
-        setState(() => release = {...release, 'message': error.toString()});
+      if (mounted) {
+        setState(() => release = {
+              ...release,
+              'available': false,
+              'message': error.toString()
+            });
       }
     } finally {
       if (mounted) {
@@ -150,7 +154,9 @@ class _UpdateDialogState extends State<UpdateDialog> {
                       : widget.release['available'] == true
                           ? '${widget.release['tag']} disponível.'
                           : widget.release['message']?.toString() ??
-                              'Você está usando a versão mais recente.'),
+                              (widget.release['tag'] != null
+                                  ? 'Você está usando a versão mais recente.'
+                                  : 'Não foi possível confirmar a versão disponível.')),
                   if (downloaded != null) ...[
                     const SizedBox(height: 12),
                     SelectableText(downloaded!),
